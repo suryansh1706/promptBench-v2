@@ -55,7 +55,7 @@ class StatisticalConfig:
 class PromptBenchConfig:
     """Master configuration for a PromptBench audit run."""
     project_name: str = "PromptBench"
-    version: str = "1.0.0"
+    version: str = "1.1.0"
     base_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent)
     data_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data")
     results_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "results")

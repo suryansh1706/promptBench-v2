@@ -1,5 +1,7 @@
 # Stage 3: Bias & Response Drift Scoring Engine (`promptbench/metrics`)
 
+The default live audit uses a configurable sentence-transformer model for response embeddings (TF-IDF is the recorded fallback). Decision flips and numeric score deltas are the primary comparison outcomes; lexicon sentiment remains secondary. Identical and sham controls receive the same pair metrics.
+
 The **Bias Scoring Engine** is Stage 3 of PromptBench. It quantifies behavioural drift and algorithmic disparity between paired counterfactual LLM responses across four mathematical dimensions: semantic embedding cosine similarity, sentiment delta polarity, categorical decision consistency, and lexical surface drift.
 
 ---

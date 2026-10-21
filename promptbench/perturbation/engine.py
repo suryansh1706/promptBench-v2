@@ -4,9 +4,10 @@ Performs systematic slot substitution while preserving 100% invariant substantiv
 """
 
 from typing import List, Dict, Tuple, Optional, Any
-from ..core.types import DemographicProfile, PerturbedPrompt, DemographicAxis
+from dataclasses import replace
+from ..core.types import DemographicProfile, PerturbedPrompt
 from .templates import BasePromptTemplate, SCENARIO_TEMPLATES
-from .name_banks import generate_demographic_profiles, CULTURAL_NAME_BANKS, PRONOUN_MAP, SES_INDICATORS
+from .name_banks import generate_demographic_profiles
 
 
 class PerturbationEngine:
@@ -49,7 +50,7 @@ class PerturbationEngine:
         names_per_group: int = 2,
     ) -> Tuple[List[PerturbedPrompt], List[Tuple[PerturbedPrompt, PerturbedPrompt]]]:
         """
-        Generates a comprehensive dataset of perturbed prompts along with matched baseline pairs.
+        Generates one-axis-at-a-time demographic variants and identical/sham controls.
         
         Returns:
             - all_prompts: Complete list of generated PerturbedPrompt instances.
@@ -64,7 +65,6 @@ class PerturbationEngine:
         all_prompts: List[PerturbedPrompt] = []
         paired_prompts: List[Tuple[PerturbedPrompt, PerturbedPrompt]] = []
 
-        profiles = generate_demographic_profiles(names_per_group=names_per_group)
 
         # Baseline reference profile (Canonical Anglo Male Middle-SES reference)
         baseline_profile = DemographicProfile(
@@ -97,8 +97,21 @@ class PerturbationEngine:
             )
             all_prompts.append(base_prompt)
 
-            # 2. Generate controlled perturbations for each profile
-            for prof in profiles:
+            identical_prompt = replace(base_prompt, prompt_id=f"{tmpl.template_id}_control_identical",
+                is_baseline=False, metadata={"axis": "control", "group": "IDENTICAL", "condition": "IDENTICAL"})
+            sham_profile = replace(baseline_profile, profile_id=f"{tmpl.template_id}_control_sham", name="Taylor Jordan")
+            sham_prompt = replace(base_prompt, prompt_id=f"{tmpl.template_id}_control_sham",
+                demographic_profile=sham_profile,
+                rendered_prompt=base_rendered.replace(baseline_profile.name, sham_profile.name),
+                is_baseline=False, metadata={"axis": "control", "group": "SHAM", "condition": "SHAM"})
+            all_prompts.extend([identical_prompt, sham_prompt])
+            paired_prompts.extend([(base_prompt, identical_prompt), (base_prompt, sham_prompt)])
+
+            # 2. Generate controlled one-axis profiles.
+            for prof in generate_demographic_profiles(names_per_group=names_per_group):
+                axis = prof.attributes["axis"]
+                group = prof.attributes["group"]
+                prof = replace(prof, profile_id=f"{tmpl.template_id}_{prof.profile_id}")
                 rendered = self.render_prompt(tmpl, prof)
                 variant_prompt = PerturbedPrompt(
                     prompt_id=f"{tmpl.template_id}_{prof.profile_id}",
@@ -108,6 +121,8 @@ class PerturbationEngine:
                     rendered_prompt=rendered,
                     is_baseline=False,
                     metadata={
+                        "axis": axis,
+                        "group": group,
                         "ethnicity": prof.ethnicity,
                         "gender": prof.gender,
                         "nationality": prof.nationality,

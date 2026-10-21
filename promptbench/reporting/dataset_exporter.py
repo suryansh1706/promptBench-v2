@@ -44,7 +44,9 @@ class DatasetExporter:
                 f.write(json.dumps(c.to_dict()) + "\n")
 
     @staticmethod
-    def export_to_csv(comparisons: List[PairwiseComparison], output_path: Path):
+    def export_to_csv(comparisons: List[PairwiseComparison], output_path: Path,
+                      hypothesis_results: Optional[List[HypothesisTestResult]] = None,
+                      run_metadata: Optional[Dict[str, Any]] = None):
         """Exports tabular metrics as a flat CSV file."""
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -53,16 +55,32 @@ class DatasetExporter:
             return
 
         fieldnames = [
-            "pair_id", "template_id", "scenario_category", "demographic_axis",
+            "pair_id", "template_id", "scenario_category", "model_name", "provider", "condition", "demographic_axis",
             "demographic_group", "baseline_group", "embedding_cosine_similarity",
             "sentiment_base", "sentiment_perturbed", "sentiment_delta",
             "decision_base", "decision_perturbed", "decision_matches",
+            "decision_flip",
             "score_base", "score_perturbed", "score_delta",
-            "lexical_jaccard_similarity", "token_length_delta"
+            "lexical_jaccard_similarity", "token_length_delta", "base_status", "perturbed_status",
+            "group_effect_sizes", "temperature", "seed", "date_utc", "package_version"
         ]
+
+        effects = {}
+        for result in hypothesis_results or []:
+            effects.setdefault((result.demographic_axis, result.target_group), []).append({
+                "metric": result.metric_tested, "n": result.sample_size,
+                "cohens_d": result.effect_size_cohens_d,
+                "effect_size_ci_95": result.effect_size_ci_95,
+                "permutation_p_value": result.permutation_p_value,
+                "bh_fdr_p_value": result.benjamini_hochberg_p_value,
+                "status": result.status,
+            })
 
         with open(output_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
             writer.writeheader()
             for c in comparisons:
-                writer.writerow(c.to_dict())
+                row = c.to_dict()
+                row["group_effect_sizes"] = json.dumps(effects.get((c.demographic_axis, c.demographic_group), []))
+                row.update({key: (run_metadata or {}).get(key) for key in ("temperature", "seed", "date_utc", "package_version")})
+                writer.writerow(row)

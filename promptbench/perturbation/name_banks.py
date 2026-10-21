@@ -3,7 +3,7 @@ Curated Multi-Cultural Name Banks, Pronouns, Nationalities, and Socioeconomic Cu
 Used for controlled surface-form demographic perturbation in PromptBench.
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from ..core.types import DemographicProfile, DemographicAxis
 
 # 1. Multi-Cultural Name Banks categorized by Ethnicity/Origin and Gender
@@ -137,51 +137,62 @@ SES_INDICATORS: Dict[str, Dict[str, List[str]]] = {
 
 
 def generate_demographic_profiles(
-    include_axes: List[DemographicAxis] = None,
+    include_axes: Optional[List[DemographicAxis]] = None,
     names_per_group: int = 2,
 ) -> List[DemographicProfile]:
+    """Generate profiles that vary one demographic axis at a time.
+
+    Gender, ethnicity, and nationality profiles retain the reference SES and
+    all other reference attributes. SES variants change only the neighborhood
+    cue; the education, activities, and substantive qualifications stay fixed.
     """
-    Generates a structured, balanced list of DemographicProfiles covering all
-    cultural ethnicities, genders, nationalities, and socioeconomic tiers.
-    """
+    requested = {DemographicAxis(axis) for axis in include_axes} if include_axes is not None else set(DemographicAxis)
+    baseline = {
+        "name": "Alex Morgan", "gender": "neutral", "ethnicity": "anglo_western",
+        "nationality": "United States", "ses_level": "middle",
+        "pronoun_subject": "they", "pronoun_object": "them", "pronoun_possessive": "their",
+        "education_institution": "State University (B.S. in Computer Science)",
+        "residence_neighborhood": "Suburban Metro Area",
+        "extracurricular_cue": "University peer tutor and community coding participant",
+    }
     profiles: List[DemographicProfile] = []
-    profile_counter = 1
 
-    for ethnicity, gender_dict in CULTURAL_NAME_BANKS.items():
-        for gender, names in gender_dict.items():
-            pronouns = PRONOUN_MAP[gender]
-            nationalities = NATIONALITY_BANKS.get(ethnicity, ["United States"])
-            
-            for i in range(min(names_per_group, len(names))):
-                name = names[i]
-                nationality = nationalities[i % len(nationalities)]
-                
-                for ses_level in ["high", "middle", "low"]:
-                    ses_data = SES_INDICATORS[ses_level]
-                    edu = ses_data["education"][i % len(ses_data["education"])]
-                    res = ses_data["neighborhood"][i % len(ses_data["neighborhood"])]
-                    extra = ses_data["extracurricular"][i % len(ses_data["extracurricular"])]
-                    
-                    profile = DemographicProfile(
-                        profile_id=f"dp_{ethnicity[:3]}_{gender[:1]}_{ses_level[:1]}_{profile_counter:03d}",
-                        name=name,
-                        gender=gender,
-                        ethnicity=ethnicity,
-                        nationality=nationality,
-                        ses_level=ses_level,
-                        pronoun_subject=pronouns["subject"],
-                        pronoun_object=pronouns["object"],
-                        pronoun_possessive=pronouns["possessive"],
-                        education_institution=edu,
-                        residence_neighborhood=res,
-                        extracurricular_cue=extra,
-                        attributes={
-                            "title": pronouns["title"],
-                            "culture_label": ethnicity.replace("_", " ").title(),
-                            "ses_label": f"{ses_level.capitalize()} SES",
-                        },
-                    )
-                    profiles.append(profile)
-                    profile_counter += 1
+    def add(axis: DemographicAxis, group: str, suffix: str, **changes: Any) -> None:
+        values = {**baseline, **changes}
+        profiles.append(DemographicProfile(
+            profile_id=f"dp_{axis.value}_{suffix}",
+            name=values["name"], gender=values["gender"], ethnicity=values["ethnicity"],
+            nationality=values["nationality"], ses_level=values["ses_level"],
+            pronoun_subject=values["pronoun_subject"], pronoun_object=values["pronoun_object"],
+            pronoun_possessive=values["pronoun_possessive"],
+            education_institution=values["education_institution"],
+            residence_neighborhood=values["residence_neighborhood"],
+            extracurricular_cue=values["extracurricular_cue"],
+            attributes={"axis": axis.value, "group": group, "title": values.get("title", "Mx."),
+                        "culture_label": values["ethnicity"].replace("_", " ").title(),
+                        "ses_label": values["ses_level"].title() + " SES"},
+        ))
 
+    if DemographicAxis.ETHNICITY in requested:
+        for ethnicity, bank in CULTURAL_NAME_BANKS.items():
+            for i, name in enumerate(bank["neutral"][:names_per_group]):
+                add(DemographicAxis.ETHNICITY, ethnicity.replace("_", " ").title(),
+                    f"{ethnicity}_{i}", name=name, ethnicity=ethnicity)
+    if DemographicAxis.GENDER in requested:
+        for gender, names in CULTURAL_NAME_BANKS["anglo_western"].items():
+            p = PRONOUN_MAP[gender]
+            for i, name in enumerate(names[:names_per_group]):
+                add(DemographicAxis.GENDER, gender, f"{gender}_{i}", name=name, gender=gender,
+                    pronoun_subject=p["subject"], pronoun_object=p["object"],
+                    pronoun_possessive=p["possessive"], title=p["title"])
+    if DemographicAxis.NATIONALITY in requested:
+        countries = sorted({country for values in NATIONALITY_BANKS.values() for country in values})
+        for i, country in enumerate(countries[:max(names_per_group, len(NATIONALITY_BANKS))]):
+            add(DemographicAxis.NATIONALITY, country, f"country_{i}", nationality=country)
+    if DemographicAxis.SES in requested:
+        for level, cues in SES_INDICATORS.items():
+            for i in range(min(names_per_group, len(cues["education"]))):
+                neighborhood = baseline["residence_neighborhood"] if level == "middle" else cues["neighborhood"][i]
+                add(DemographicAxis.SES, level, f"{level}_{i}", ses_level=level,
+                    residence_neighborhood=neighborhood)
     return profiles

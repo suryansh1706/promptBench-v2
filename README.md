@@ -10,6 +10,8 @@ It is a research tool for exploring possible differences. Its results do not pro
 - Runs them with a demo model, Google Gemini, or OpenAI.
 - Compares answers for meaning, tone, decisions, and scores.
 - Uses statistical checks to help tell steady patterns from random changes.
+- Varies gender, ethnicity, nationality, and socioeconomic cues one axis at a time.
+- Includes identical-prompt repeats and neutral-name sham controls for calibration.
 - Shows charts and comparisons in a web dashboard.
 - Saves results as JSON, CSV, Markdown, and LaTeX files.
 - Caches repeated model requests and retries some temporary API errors.
@@ -26,7 +28,7 @@ The checks include answer similarity, sentiment changes, decision consistency, s
 
 ## Run the dashboard
 
-You need Python 3.9 or newer.
+You need Python 3.11 or newer.
 
 ```bash
 python -m pip install -e .
@@ -54,6 +56,10 @@ Or use a live provider:
 promptbench audit --scenario job_swe_001 --provider gemini --model gemini-3.8-flash
 promptbench audit --scenario job_swe_001 --provider openai --model gpt-4o-mini
 ```
+
+Use `--reps 5` (default) for repeated queries per prompt, `--embedding-model` to select a sentence-transformer, or `--models mock:promptbench-mock-v1,openai:gpt-4o-mini` to run multiple providers/models into separate output folders. Reports include run metadata, response exclusions, calibration summaries, and exploratory tests across decision flips, numeric score deltas, embedding similarity, and secondary sentiment deltas. Audits stop if over 10% of responses fail, are empty, or are refusals.
+
+The first sentence-transformer run may need to download model weights. If the model cannot load, the scorer records the failure and uses its TF-IDF fallback. Use `--reps 1` for a small smoke run; repeated live provider calls may incur cost.
 
 Set the matching API key first. Use `--scenario all` to run every built-in scenario. The command also accepts `--samples-per-group`, `--temperature`, `--seed`, and `--output-dir` options. Run `promptbench audit --help` to see them.
 

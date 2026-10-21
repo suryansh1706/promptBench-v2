@@ -5,6 +5,7 @@ Abstract Base Class and Parser for LLM Query Providers in PromptBench.
 from abc import ABC, abstractmethod
 from typing import Optional, List, Tuple, Dict, Any
 import re
+import json
 import time
 from ...core.types import ModelResponse, PerturbedPrompt
 
@@ -36,7 +37,26 @@ class BaseLLMProvider(ABC):
         decision: Optional[str] = None
         score: Optional[float] = None
 
-        # Regex for structured decision tokens
+        # Preferred provider contract: strict JSON object.
+        try:
+            candidate = text.strip()
+            if not candidate.startswith("{"):
+                start, end = candidate.find("{"), candidate.rfind("}")
+                candidate = candidate[start:end + 1] if start >= 0 and end > start else candidate
+            payload = json.loads(candidate)
+            if isinstance(payload, dict):
+                decision = str(payload.get("decision", "")).strip().upper() or None
+                raw_score = payload.get("score")
+                score = float(raw_score) if raw_score is not None else None
+                if decision not in {"ACCEPT", "REJECT", "INTERVIEW", "APPROVED", "DENIED", "COSIGNER", "REVIEW"}:
+                    decision = None
+                if score is not None and not 0 <= score <= 100:
+                    score = None
+                return decision, score
+        except (ValueError, TypeError):
+            pass
+
+        # Legacy parsing remains for older model responses and cached records.
         decision_pattern = r"\[DECISION:\s*([A-Za-z]+)\]"
         match_dec = re.search(decision_pattern, text, re.IGNORECASE)
         if match_dec:

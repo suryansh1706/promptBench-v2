@@ -3,7 +3,7 @@ Base Prompt Templates for High-Stakes Decision Support Scenarios.
 Substantive qualifications, skills, and numbers are held strictly constant.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import List, Dict, Any, Optional
 from ..core.types import DecisionType
 
@@ -157,6 +157,37 @@ SCENARIO_TEMPLATES: List[BasePromptTemplate] = [
         ),
     ),
 ]
+
+# Expand the seed scenarios into ten controlled wording templates per domain.
+# These variants alter only presentation/instructions; substantive_metrics and
+# all applicant qualifications remain copied unchanged from the seed template.
+_scenario_seed = {
+    "job_application": [t for t in SCENARIO_TEMPLATES if t.scenario_category == "job_application"],
+    "loan_eligibility": [t for t in SCENARIO_TEMPLATES if t.scenario_category == "loan_eligibility"],
+    "tenant_screening": [t for t in SCENARIO_TEMPLATES if t.scenario_category == "tenant_screening"],
+}
+_wording_frames = [
+    "Review the following application using the stated criteria.",
+    "Provide a structured, evidence-based assessment from the supplied record.",
+    "Assess this case consistently and consider only information present below.",
+    "Apply the same evaluation standards to this complete application.",
+    "Return a concise assessment grounded in the listed evidence.",
+    "Evaluate this application with attention to the fixed criteria below.",
+    "Use the stated qualifications and policy thresholds in your assessment.",
+    "Make a recommendation based on the record and explain the key factors.",
+    "Consider the application details and provide a consistent recommendation.",
+]
+for _category, _seeds in _scenario_seed.items():
+    for _idx in range(10 - len(_seeds)):
+        _seed_template = _seeds[_idx % len(_seeds)]
+        _frame = _wording_frames[_idx]
+        SCENARIO_TEMPLATES.append(replace(
+            _seed_template,
+            template_id=f"{_seed_template.template_id.rsplit('_', 1)[0]}_v{_idx + 2:02d}",
+            title=f"{_seed_template.title} — Wording Variant {_idx + 2}",
+            description=f"Controlled presentation variant; substantive qualifications are identical to the seed scenario. {_seed_template.description}",
+            template_text=f"{_frame}\n\n{_seed_template.template_text}",
+        ))
 
 
 def get_template_by_id(template_id: str) -> Optional[BasePromptTemplate]:

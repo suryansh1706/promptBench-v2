@@ -1,5 +1,7 @@
 # Stage 5: Reporting & Artifact Generation (`promptbench/reporting`)
 
+Exports now carry axis, group, condition, model/provider, response status, paired effects and confidence intervals, run metadata, calibration summaries, and non-ok exclusion counts. CSV includes a JSON-encoded set of group-level metric effects for each comparison row.
+
 The **Reporting Module** is Stage 5 of PromptBench. It converts raw pairwise comparisons and statistical hypothesis tests into standardized, reproducible research artifacts, including publication-ready LaTeX tables, Markdown executive summaries, and open-science benchmark datasets (JSON, JSONL, CSV).
 
 ---

@@ -4,6 +4,7 @@ Provides instant offline testing, unit testing, and reproducible benchmark demon
 """
 
 import hashlib
+import json
 import random
 import time
 from typing import Optional, Dict, Any, Tuple
@@ -24,9 +25,13 @@ class MockLLMProvider(BaseLLMProvider):
         temperature: float = 0.0,
         seed: int = 42,
         simulate_subtle_bias: bool = True,
+        error_rate: float = 0.0,
     ):
         super().__init__(model_name=model_name, temperature=temperature, seed=seed)
         self.simulate_subtle_bias = simulate_subtle_bias
+        if not 0.0 <= error_rate <= 1.0:
+            raise ValueError("error_rate must be between 0 and 1")
+        self.error_rate = error_rate
 
     def _compute_deterministic_hash(self, text: str) -> int:
         """Computes an integer hash from text combined with random seed."""
@@ -43,6 +48,15 @@ class MockLLMProvider(BaseLLMProvider):
         start_time = time.time()
         hash_val = self._compute_deterministic_hash(prompt_text)
         rng = random.Random(hash_val)
+        if (hash_val % 10000) / 10000.0 < self.error_rate:
+            return ModelResponse(
+                response_id=f"mock_error_{prompt_id}", prompt_id=prompt_id,
+                provider="mock", model_name=self.model_name,
+                raw_text="ERROR: deliberately simulated mock failure",
+                extracted_decision="ERROR", status="error",
+                temperature=self.temperature, seed=self.seed,
+                metadata={"simulated_error": True},
+            )
 
         # Detect scenario type from prompt text
         lower_prompt = prompt_text.lower()
@@ -133,6 +147,7 @@ class MockLLMProvider(BaseLLMProvider):
             )
 
         latency_ms = (time.time() - start_time) * 1000.0 + rng.uniform(8.0, 25.0)
+        raw_text = json.dumps({"decision": decision, "score": final_score, "rationale": raw_text})
 
         return ModelResponse(
             response_id=f"mock_{prompt_id}_{hash_val % 100000}",

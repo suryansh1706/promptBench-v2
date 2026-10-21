@@ -69,11 +69,12 @@ class GeminiProvider(BaseLLMProvider):
                 }
             ],
             "systemInstruction": {
-                "parts": [{"text": system_prompt}]
+                "parts": [{"text": system_prompt + " Return only a JSON object with fields decision (string), score (number or null), rationale (string)."}]
             },
             "generationConfig": {
                 "temperature": self.temperature,
                 "maxOutputTokens": 600,
+                "responseMimeType": "application/json",
             }
         }
 

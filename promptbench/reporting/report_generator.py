@@ -24,23 +24,25 @@ class ReportGenerator:
             r"\caption{Demographic Bias and Response Drift Audit Results with Multiple Comparisons Correction.}",
             r"\label{tab:promptbench_results}",
             r"\small",
-            r"\begin{tabular}{llccccc}",
+            r"\begin{tabular}{lllcccccc}",
             r"\toprule",
-            r"\textbf{Demographic Axis} & \textbf{Target Subgroup} & \textbf{Observed $\Delta$} & \textbf{Cohen's $d$} & \textbf{Raw $p$-val} & \textbf{BH FDR $p$-val} & \textbf{95\% Bootstrap CI} \\",
+            r"\textbf{Axis} & \textbf{Group} & \textbf{Metric} & \textbf{n} & \textbf{Effect} & \textbf{Cohen's $d$ [95\% CI]} & \textbf{Raw $p$} & \textbf{BH $p$} & \textbf{Status} \\",
             r"\midrule",
         ]
 
         for r in results:
-            ci_str = f"[{r.bootstrap_ci_95[0]:+.3f}, {r.bootstrap_ci_95[1]:+.3f}]"
+            d_ci = f"{r.effect_size_cohens_d:+.2f} [{r.effect_size_ci_95[0]:+.2f}, {r.effect_size_ci_95[1]:+.2f}]"
             sig_marker = r"$^{*}$" if r.is_significant_fdr else ""
+            raw_p = f"{r.raw_p_value:.4f}" if r.raw_p_value is not None else "—"
+            adj_p = f"{r.benjamini_hochberg_p_value:.4f}" if r.benjamini_hochberg_p_value is not None else "—"
             latex.append(
-                f"{r.demographic_axis.capitalize()} & {r.target_group} & {r.observed_difference:+.4f} & "
-                f"{r.effect_size_cohens_d:+.2f} & {r.raw_p_value:.4f} & {r.benjamini_hochberg_p_value:.4f}{sig_marker} & {ci_str} \\\\"
+                f"{r.demographic_axis.capitalize()} & {r.target_group} & {r.metric_tested} & {r.sample_size} & {r.observed_difference:+.4f} & "
+                f"{d_ci} & {raw_p} & {adj_p}{sig_marker} & {r.status} \\\\"
             )
 
         latex.extend([
             r"\bottomrule",
-            r"\multicolumn{7}{l}{\footnotesize $^{*}$Statistically significant after Benjamini-Hochberg False Discovery Rate control at $\alpha=0.05$.} \\",
+            r"\multicolumn{9}{l}{\footnotesize $^{*}$Flagged after Benjamini-Hochberg correction; exploratory results only.} \\",
             r"\end{tabular}",
             r"\end{table*}",
         ])
@@ -62,26 +64,34 @@ class ReportGenerator:
             "## 1. High-Level Metrics Overview",
             f"- **Total Prompts Tested:** {summary.total_prompts_tested}",
             f"- **Total Counterfactual Pairs Evaluated:** {summary.total_pairs_evaluated}",
+            f"- **Demographic pairs / calibration control pairs:** {summary.total_demographic_pairs} / {summary.total_control_pairs}",
             f"- **Mean Semantic Embedding Cosine Similarity:** `{summary.overall_mean_similarity:.4f}`",
-            f"- **Mean Sentiment Delta ($\Delta$ Sentiment):** `{summary.overall_mean_sentiment_delta:+.4f}`",
+            f"- **Mean Sentiment Delta ($\\Delta$ Sentiment):** `{summary.overall_mean_sentiment_delta:+.4f}`",
             f"- **Decision Consistency Rate:** `{summary.overall_decision_consistency_rate * 100:.1f}%`",
+            f"- **Excluded non-ok responses by group/status:** `{summary.excluded_response_counts}`",
+            f"- **Run metadata:** `{summary.run_metadata}`",
             "",
             "## 2. Statistical Hypothesis Testing & Significance",
-            "| Axis | Subgroup | Observed Delta | Permutation $p$ | BH FDR $p$ | 95% Bootstrap CI | Significant Bias? |",
-            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+            "| Axis | Subgroup | Metric | n | Effect | Cohen's d [95% CI] | Permutation $p$ | BH FDR $p$ | Mean-delta 95% CI | Status |",
+            "| :--- | :--- | :--- | ---: | ---: | :--- | ---: | ---: | :--- | :--- |",
         ]
 
         for r in summary.hypothesis_test_results:
-            sig = "**YES (p < 0.05)**" if r.is_significant_fdr else "No (p >= 0.05)"
+            sig = "flagged after FDR correction" if r.is_significant_fdr else r.status
             ci = f"[{r.bootstrap_ci_95[0]:+.3f}, {r.bootstrap_ci_95[1]:+.3f}]"
+            d_ci = f"{r.effect_size_cohens_d:+.3f} [{r.effect_size_ci_95[0]:+.3f}, {r.effect_size_ci_95[1]:+.3f}]"
+            raw_p = f"{r.permutation_p_value:.4f}" if r.permutation_p_value is not None else "—"
+            adj_p = f"{r.benjamini_hochberg_p_value:.4f}" if r.benjamini_hochberg_p_value is not None else "—"
             lines.append(
-                f"| {r.demographic_axis.capitalize()} | {r.target_group} | {r.observed_difference:+.4f} | "
-                f"{r.permutation_p_value:.4f} | {r.benjamini_hochberg_p_value:.4f} | {ci} | {sig} |"
+                f"| {r.demographic_axis.capitalize()} | {r.target_group} | {r.metric_tested} | {r.sample_size} | {r.observed_difference:+.4f} | {d_ci} | "
+                f"{raw_p} | {adj_p} | {ci} | {sig} |"
             )
 
+        calibration = summary.axis_summaries.get("calibration", {})
+        lines.extend(["", "## 3. Calibration Against Controls", f"`{calibration}`"])
         lines.extend([
             "",
-            "## 3. Findings & Remediation Recommendations",
+            "## 4. Findings & Review Recommendations",
         ])
         for rec in summary.audit_recommendations:
             lines.append(f"- {rec}")

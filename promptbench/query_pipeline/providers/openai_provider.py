@@ -55,8 +55,9 @@ class OpenAIProvider(BaseLLMProvider):
             "temperature": self.temperature,
             "seed": self.seed,
             "max_tokens": 500,
+            "response_format": {"type": "json_object"},
             "messages": [
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": system_prompt + " Return only a JSON object with fields decision (string), score (number or null), rationale (string)."},
                 {"role": "user", "content": prompt_text},
             ],
         }

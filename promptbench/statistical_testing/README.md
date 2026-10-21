@@ -1,5 +1,7 @@
 # Stage 4: Statistical Testing & Inference Engine (`promptbench/statistical_testing`)
 
+The run reports group-level decision-flip, numeric-score, embedding-similarity, and secondary sentiment tests. Degenerate or undersized groups are explicitly flagged and receive no inferential p-values. Benjamini–Hochberg correction is applied once over all testable group/metric comparisons. A statsmodels mixed-effects fit is attempted and falls back with a logged reason; `estimate_paired_sample_size()` provides a normal-approximation planning estimate.
+
 The **Statistical Testing Engine** is Stage 4 of PromptBench. It establishes whether observed differences across demographic prompt variants are statistically significant rather than stochastic noise, using distribution-free permutation tests, non-parametric bootstrap confidence intervals, and False Discovery Rate (FDR) control.
 
 ---

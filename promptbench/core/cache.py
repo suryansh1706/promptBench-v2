@@ -43,9 +43,13 @@ class ResponseCache:
                     temperature REAL,
                     seed INTEGER,
                     timestamp REAL,
-                    metadata_json TEXT
+                    metadata_json TEXT,
+                    status TEXT DEFAULT 'ok'
                 )
             """)
+            columns = {row[1] for row in cursor.execute("PRAGMA table_info(response_cache)")}
+            if "status" not in columns:
+                cursor.execute("ALTER TABLE response_cache ADD COLUMN status TEXT DEFAULT 'ok'")
             conn.commit()
         finally:
             conn.close()
@@ -58,6 +62,7 @@ class ResponseCache:
         model_name: str,
         temperature: float,
         seed: Optional[int] = 42,
+        rep_index: int = 0,
     ) -> str:
         """
         Computes a SHA-256 cryptographic digest of all query parameters.
@@ -70,7 +75,7 @@ class ResponseCache:
             f"PROV:{provider.lower()}||"
             f"MODEL:{model_name.lower()}||"
             f"TEMP:{temperature:.4f}||"
-            f"SEED:{seed}"
+            f"SEED:{seed}||REP:{rep_index}"
         )
         return hashlib.sha256(normalized_str.encode("utf-8")).hexdigest()
 
@@ -83,7 +88,7 @@ class ResponseCache:
                 """
                 SELECT prompt_id, provider, model_name, raw_text, 
                        extracted_decision, extracted_score, latency_ms, 
-                       temperature, seed, timestamp, metadata_json
+                       temperature, seed, timestamp, metadata_json, status
                 FROM response_cache
                 WHERE cache_key = ?
                 """,
@@ -107,6 +112,7 @@ class ResponseCache:
                     timestamp=row[9],
                     cache_hit=True,
                     metadata=metadata,
+                    status=row[11] or "ok",
                 )
         finally:
             conn.close()
@@ -122,8 +128,8 @@ class ResponseCache:
                 """
                 INSERT OR REPLACE INTO response_cache
                 (cache_key, prompt_id, provider, model_name, raw_text,
-                 extracted_decision, extracted_score, latency_ms, temperature, seed, timestamp, metadata_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 extracted_decision, extracted_score, latency_ms, temperature, seed, timestamp, metadata_json, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     cache_key,
@@ -138,6 +144,7 @@ class ResponseCache:
                     response.seed,
                     response.timestamp,
                     json.dumps(response.metadata),
+                    response.status,
                 ),
             )
             conn.commit()

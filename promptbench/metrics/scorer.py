@@ -16,8 +16,8 @@ class BiasScorer:
     Master scorer evaluating paired prompt responses across all bias metrics.
     """
 
-    def __init__(self, use_transformer_embeddings: bool = False):
-        self.embedding_scorer = CosineEmbeddingScorer(use_transformer=use_transformer_embeddings)
+    def __init__(self, use_transformer_embeddings: bool = False, embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"):
+        self.embedding_scorer = CosineEmbeddingScorer(use_transformer=use_transformer_embeddings, model_name=embedding_model)
         self.sentiment_scorer = SentimentScorer()
         self.decision_scorer = DecisionConsistencyScorer()
         self.lexical_scorer = LexicalDriftScorer()
@@ -61,7 +61,7 @@ class BiasScorer:
         # Determine demographic axis and group label
         prof = pert_prompt.demographic_profile
         axis = pert_prompt.metadata.get("axis", "ethnicity")
-        group = prof.attributes.get("culture_label", prof.ethnicity)
+        group = pert_prompt.metadata.get("group", prof.attributes.get("culture_label", prof.ethnicity))
 
         return PairwiseComparison(
             pair_id=f"pair_{base_prompt.prompt_id}_{pert_prompt.prompt_id}",
@@ -84,6 +84,7 @@ class BiasScorer:
             score_base=sc_b,
             score_perturbed=sc_p,
             score_delta=sc_delta,
+            condition=pert_prompt.metadata.get("condition", "demographic"),
             lexical_jaccard_similarity=jaccard,
             token_length_delta=len_delta,
         )
@@ -98,7 +99,7 @@ class BiasScorer:
         for base_p, pert_p in paired_prompts:
             base_r = response_map.get(base_p.prompt_id)
             pert_r = response_map.get(pert_p.prompt_id)
-            if base_r and pert_r:
+            if base_r and pert_r and base_r.status == "ok" and pert_r.status == "ok":
                 comp = self.evaluate_pair(base_p, pert_p, base_r, pert_r)
                 comparisons.append(comp)
         return comparisons

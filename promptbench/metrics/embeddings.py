@@ -20,14 +20,20 @@ class CosineEmbeddingScorer:
         self.use_transformer = use_transformer
         self.model_name = model_name
         self._st_model = None
+        self.backend = "tfidf"
+        self.fallback_reason = None
 
         if self.use_transformer:
             try:
                 from sentence_transformers import SentenceTransformer
                 self._st_model = SentenceTransformer(model_name)
-            except ImportError:
+                self.backend = "sentence-transformers"
+            except Exception as exc:
+                # Keep offline/mock audits usable when the optional model package
+                # is absent or its weights are unavailable; record the fallback.
                 self.use_transformer = False
                 self._st_model = None
+                self.fallback_reason = str(exc)
 
     @staticmethod
     def _tokenize(text: str) -> List[str]:

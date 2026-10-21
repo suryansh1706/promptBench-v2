@@ -68,6 +68,40 @@ class TestPromptBenchPipeline(unittest.TestCase):
             self.assertNotIn("{education}", p.rendered_prompt)
             self.assertIn("6 years of progressive", p.rendered_prompt)
 
+        axes = {variant.metadata["axis"] for _, variant in paired_prompts if variant.metadata.get("axis") != "control"}
+        self.assertEqual(axes, {"gender", "ethnicity", "nationality", "socioeconomic_status"})
+        for base, variant in paired_prompts:
+            axis = variant.metadata["axis"]
+            if axis == "control":
+                continue
+            self.assertEqual(variant.metadata["group"], {
+                "gender": variant.demographic_profile.gender,
+                "ethnicity": variant.demographic_profile.ethnicity.replace("_", " ").title(),
+                "nationality": variant.demographic_profile.nationality,
+                "socioeconomic_status": variant.demographic_profile.ses_level,
+            }[axis])
+            if axis != "gender":
+                self.assertEqual(base.demographic_profile.gender, variant.demographic_profile.gender)
+            if axis != "nationality":
+                self.assertEqual(base.demographic_profile.nationality, variant.demographic_profile.nationality)
+            if axis != "socioeconomic_status":
+                self.assertEqual(base.demographic_profile.ses_level, variant.demographic_profile.ses_level)
+                self.assertEqual(base.demographic_profile.education_institution, variant.demographic_profile.education_institution)
+                self.assertEqual(base.demographic_profile.residence_neighborhood, variant.demographic_profile.residence_neighborhood)
+                self.assertEqual(base.demographic_profile.extracurricular_cue, variant.demographic_profile.extracurricular_cue)
+            else:
+                self.assertEqual(base.demographic_profile.education_institution, variant.demographic_profile.education_institution)
+                self.assertEqual(base.demographic_profile.extracurricular_cue, variant.demographic_profile.extracurricular_cue)
+        responses = QueryOrchestrator(MockLLMProvider()).execute_batch(all_prompts)
+        comparisons = BiasScorer().evaluate_batch_pairs(paired_prompts, responses)
+        self.assertEqual({c.demographic_axis for c in comparisons if c.condition == "demographic"}, axes)
+
+    def test_templates_cover_ten_each_scenario(self):
+        from collections import Counter
+        counts = Counter(t.scenario_category for t in SCENARIO_TEMPLATES)
+        for category in ("job_application", "loan_eligibility", "tenant_screening"):
+            self.assertGreaterEqual(counts[category], 10)
+
     def test_stage2_cache_and_mock_provider(self):
         """Test deterministic caching and mock provider generation."""
         mock_provider = MockLLMProvider()
@@ -90,6 +124,9 @@ class TestPromptBenchPipeline(unittest.TestCase):
         self.assertIsNotNone(cached_resp)
         self.assertTrue(cached_resp.cache_hit)
         self.assertEqual(resp1.extracted_decision, cached_resp.extracted_decision)
+        key_rep_1 = ResponseCache.generate_key(prompt_text, system_prompt, "mock", "mock-llm-v1", 0.0, 42, rep_index=1)
+        key_rep_2 = ResponseCache.generate_key(prompt_text, system_prompt, "mock", "mock-llm-v1", 0.0, 42, rep_index=2)
+        self.assertNotEqual(key_rep_1, key_rep_2)
 
     def test_stage3_bias_metrics(self):
         """Test semantic cosine similarity, sentiment, and fairness metrics."""
@@ -99,6 +136,10 @@ class TestPromptBenchPipeline(unittest.TestCase):
         sim = emb_scorer.compute_similarity(t1, t2)
         self.assertGreaterEqual(sim, 0.50)
         self.assertLessEqual(sim, 1.0)
+        decision, score = MockLLMProvider.parse_decision_and_score(
+            '```json\n{"decision":"APPROVED","score":92,"rationale":"meets criteria"}\n```'
+        )
+        self.assertEqual((decision, score), ("APPROVED", 92.0))
 
         # Test Sentiment Scorer
         sent_scorer = SentimentScorer()
@@ -140,6 +181,49 @@ class TestPromptBenchPipeline(unittest.TestCase):
         bh_adj, sig = MultipleTestingCorrection.benjamini_hochberg(p_raw, alpha=0.05)
         self.assertTrue(sig[0])
         self.assertFalse(sig[4])
+
+    def test_failed_responses_are_excluded(self):
+        engine = PerturbationEngine()
+        prompts, pairs = engine.generate_counterfactual_dataset(template_ids=["job_swe_001"], names_per_group=1)
+        responses = QueryOrchestrator(MockLLMProvider()).execute_batch(prompts)
+        bad_id = pairs[0][1].prompt_id
+        responses[bad_id].status = "error"
+        comparisons = BiasScorer().evaluate_batch_pairs(pairs, responses)
+        self.assertEqual(len(comparisons), len(pairs) - 1)
+
+    def test_statistics_mark_zero_variance_degenerate(self):
+        from types import SimpleNamespace
+        comps = [SimpleNamespace(
+            demographic_axis="gender", demographic_group="male", baseline_group="ref",
+            sentiment_delta=0.0, score_base=80.0, score_perturbed=80.0,
+            sentiment_base=0.2, sentiment_perturbed=0.2,
+            decision_matches=True, score_delta=0.0, embedding_cosine_similarity=1.0,
+        ) for _ in range(3)]
+        result = StatisticalTestingEngine().analyze_comparisons(comps)
+        self.assertEqual(result[0].status, "degenerate")
+        self.assertIsNone(result[0].permutation_p_value)
+
+    def test_controls_and_mock_error_mode(self):
+        engine = PerturbationEngine()
+        prompts, pairs = engine.generate_counterfactual_dataset(template_ids=["job_swe_001"], names_per_group=1)
+        controls = [v for _, v in pairs if v.metadata.get("condition") in {"IDENTICAL", "SHAM"}]
+        self.assertEqual({p.metadata["condition"] for p in controls}, {"IDENTICAL", "SHAM"})
+        identical = next(p for p in controls if p.metadata["condition"] == "IDENTICAL")
+        base = next(b for b, v in pairs if v is identical)
+        self.assertEqual(base.rendered_prompt, identical.rendered_prompt)
+        failing = QueryOrchestrator(MockLLMProvider(error_rate=1.0)).execute_batch(prompts)
+        self.assertTrue(all(response.status == "error" for response in failing.values()))
+        self.assertEqual(BiasScorer().evaluate_batch_pairs(pairs, failing), [])
+        with self.assertRaises(RuntimeError):
+            QueryOrchestrator.assert_acceptable_response_rate(failing)
+
+    def test_mixed_effects_failure_reports_fallback(self):
+        result = StatisticalTestingEngine.fit_mixed_effects([])
+        self.assertEqual(result["status"], "fallback_permutation")
+
+    def test_power_analysis_helper(self):
+        n = StatisticalTestingEngine.estimate_paired_sample_size(0.5)
+        self.assertGreater(n, 1)
 
     def test_stage5_end_to_end_audit_and_export(self):
         """Test full 5-stage pipeline integration."""

@@ -108,3 +108,20 @@ class BootstrapCI:
             float(round(bootstrap_ds[lower_idx], 4)),
             float(round(bootstrap_ds[upper_idx], 4)),
         )
+
+    def compute_ci_paired_cohens_d(self, differences: List[float]) -> Tuple[float, float, float]:
+        """Bootstrap Cohen's d for paired deltas (mean delta / sample SD)."""
+        if len(differences) < 2:
+            return 0.0, 0.0, 0.0
+        rng = random.Random(self.seed)
+        def d_value(values):
+            mean = sum(values) / len(values)
+            variance = sum((x - mean) ** 2 for x in values) / (len(values) - 1)
+            return mean / math.sqrt(variance) if variance > 0 else 0.0
+        observed = d_value(differences)
+        samples = [d_value([differences[rng.randrange(len(differences))] for _ in differences]) for _ in range(self.resamples)]
+        samples.sort()
+        alpha = 1.0 - self.confidence_level
+        lo = min(self.resamples - 1, int((alpha / 2) * self.resamples))
+        hi = min(self.resamples - 1, int((1 - alpha / 2) * self.resamples))
+        return tuple(round(v, 4) for v in (observed, samples[lo], samples[hi]))

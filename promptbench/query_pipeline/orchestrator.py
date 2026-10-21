@@ -31,6 +31,13 @@ class QueryOrchestrator:
         self.cache = cache
         self.max_workers = max_workers
 
+    @staticmethod
+    def assert_acceptable_response_rate(responses: Dict[str, ModelResponse], threshold: float = 0.10) -> None:
+        """Stop an audit when failed, empty, or refused outputs exceed the allowed fraction."""
+        failed = sum(response.status != "ok" for response in responses.values())
+        if responses and failed / len(responses) > threshold:
+            raise RuntimeError(f"Audit stopped: {failed}/{len(responses)} responses were non-ok (> {threshold:.0%}).")
+
     @classmethod
     def from_config(cls, config: PromptBenchConfig) -> "QueryOrchestrator":
         """Factory method to construct orchestrator directly from PromptBenchConfig."""
@@ -83,20 +90,48 @@ class QueryOrchestrator:
                 model_name=self.provider.model_name,
                 temperature=self.provider.temperature,
                 seed=self.provider.seed,
+                rep_index=int(prompt.metadata.get("rep_index", 0)),
             )
             cached_resp = self.cache.get(cache_key)
             if cached_resp:
                 return cached_resp
 
         # 2. Invoke provider
-        response = self.provider.generate_response(
-            prompt_text=prompt.rendered_prompt,
-            system_prompt=prompt.system_prompt,
-            prompt_id=prompt.prompt_id,
-        )
+        response = None
+        attempts = max(1, min(int(getattr(self.provider, "max_retries", 3)), 3))
+        last_error = None
+        for _ in range(attempts):
+            try:
+                response = self.provider.generate_response(
+                    prompt_text=prompt.rendered_prompt,
+                    system_prompt=prompt.system_prompt,
+                    prompt_id=prompt.prompt_id,
+                )
+            except Exception as exc:
+                last_error = exc
+                continue
+            text = response.raw_text.strip().lower()
+            if response.extracted_decision != "ERROR" and text and not text.startswith("api error"):
+                break
+
+        if response is None:
+            response = ModelResponse(
+                response_id=f"error_{prompt.prompt_id}", prompt_id=prompt.prompt_id,
+                provider=getattr(self.provider, "provider_name", "unknown"),
+                model_name=self.provider.model_name, raw_text=f"ERROR after retries: {last_error}",
+                extracted_decision="ERROR", status="error",
+            )
+
+        lowered = response.raw_text.strip().lower()
+        if not lowered:
+            response.status = "empty"
+        elif any(term in lowered for term in ("i cannot help", "i can't help", "i am unable to", "i cannot provide", "i cannot assist", "i can't assist", "unable to assist", "blocked:", "safety filters")):
+            response.status = "refusal"
+        elif response.extracted_decision == "ERROR" or lowered.startswith("fatal execution error"):
+            response.status = "error"
 
         # 3. Store in cache
-        if self.cache and cache_key:
+        if self.cache and cache_key and response.status == "ok":
             self.cache.set(cache_key, response)
 
         return response
@@ -147,6 +182,7 @@ class QueryOrchestrator:
                         extracted_decision="ERROR",
                         extracted_score=None,
                         latency_ms=0.0,
+                        status="error",
                     )
                 
                 completed_count += 1

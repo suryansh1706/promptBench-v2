@@ -1,5 +1,7 @@
 # Stage 2: LLM Query Pipeline (`promptbench/query_pipeline`)
 
+Model responses carry `ok`, `error`, `empty`, or `refusal` status. Failed requests are retried, cached with status and replicate-aware keys, excluded from scoring, and counted in output reports; CLI and dashboard audits stop when more than 10% fail. Providers request structured JSON with decision, score, and rationale fields, with legacy parsing retained for cached and older responses.
+
 The **LLM Query Pipeline** is Stage 2 of PromptBench. It manages the robust, rate-limited, and deterministic querying of commercial and open LLMs (Google Gemini, OpenAI GPT, and Mock LLMs) with enterprise resilience and zero duplicate API expenditure.
 
 ---
