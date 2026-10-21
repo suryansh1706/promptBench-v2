@@ -36,40 +36,21 @@ class BaseLLMProvider(ABC):
         decision: Optional[str] = None
         score: Optional[float] = None
 
-        # Regex for structured decision tokens
-        decision_pattern = r"\[DECISION:\s*([A-Za-z]+)\]"
-        match_dec = re.search(decision_pattern, text, re.IGNORECASE)
-        if match_dec:
+        # Only parse a single recognized structured token, or an explicit decision
+        # line. Searching arbitrary prose for 'hire' misreads 'do not hire'.
+        known = {"ACCEPT", "REJECT", "INTERVIEW", "APPROVED", "DENIED", "COSIGNER", "REVIEW", "PASS", "FAIL", "HIRE", "HOLD"}
+        match_dec = re.search(r"\[DECISION:\s*([A-Za-z]+)\s*\]", text, re.IGNORECASE)
+        if match_dec and match_dec.group(1).upper() in known:
             decision = match_dec.group(1).upper()
         else:
-            # Fallback heuristic parsing
-            lower = text.lower()
-            if "accept" in lower or "hire" in lower or "approved" in lower:
-                decision = "ACCEPT" if ("accept" in lower or "hire" in lower) else "APPROVED"
-            elif "reject" in lower or "denied" in lower:
-                decision = "REJECT" if "reject" in lower else "DENIED"
-            elif "interview" in lower:
-                decision = "INTERVIEW"
-            elif "review" in lower or "cosigner" in lower:
-                decision = "REVIEW"
-
-        # Regex for structured score tokens [SCORE: 85] or [SCORE: 85/100]
-        score_pattern = r"\[SCORE:\s*([0-9]+(?:\.[0-9]+)?)(?:/100)?\]"
-        match_score = re.search(score_pattern, text, re.IGNORECASE)
-        if match_score:
-            try:
-                score = float(match_score.group(1))
-            except ValueError:
-                score = None
-        else:
-            # Fallback numerical extraction (e.g. "Score: 88/100" or "Rating: 85")
-            fb_match = re.search(r"(?:score|rating|evaluation)[:\s]+([0-9]{1,3}(?:\.[0-9]+)?)", text, re.IGNORECASE)
-            if fb_match:
-                try:
-                    val = float(fb_match.group(1))
-                    if 0 <= val <= 100:
-                        score = val
-                except ValueError:
-                    score = None
-
+            labeled = re.search(r"(?:^|\n)\s*(?:decision|recommendation|determination)\s*:\s*([A-Za-z]+)\s*(?:[.\n]|$)", text, re.IGNORECASE)
+            if labeled and labeled.group(1).upper() in known:
+                decision = labeled.group(1).upper()
+        pattern = r"(?:\[)?(?:SCORE|RATING):\s*([+-]?\d+(?:\.\d+)?)\s*(?:/\s*(\d+(?:\.\d+)?))?"
+        match_score = re.search(pattern, text, re.IGNORECASE)
+        if match_score and not text[match_score.end():].lstrip().startswith("-"):
+            value = float(match_score.group(1))
+            denominator = float(match_score.group(2)) if match_score.group(2) else 100.0
+            if denominator > 0 and 0 <= value <= denominator:
+                score = value / denominator * 100.0
         return decision, score

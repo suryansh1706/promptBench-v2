@@ -107,7 +107,7 @@ class PairwiseComparison:
     
     decision_base: Optional[str] = None
     decision_perturbed: Optional[str] = None
-    decision_matches: bool = True
+    decision_matches: Optional[bool] = None
     
     score_base: Optional[float] = None
     score_perturbed: Optional[float] = None
@@ -115,12 +115,15 @@ class PairwiseComparison:
     
     lexical_jaccard_similarity: float = 1.0
     token_length_delta: int = 0
+    condition: str = "DEMOGRAPHIC"
+    similarity_method: str = "weighted_unigram_bigram_term_frequency_cosine"
     
     def to_dict(self) -> Dict[str, Any]:
         return {
             "pair_id": self.pair_id,
             "template_id": self.template_id,
             "scenario_category": self.scenario_category,
+            "condition": self.condition,
             "demographic_axis": self.demographic_axis,
             "demographic_group": self.demographic_group,
             "baseline_group": self.baseline_group,
@@ -129,6 +132,7 @@ class PairwiseComparison:
             "base_response_text": self.base_response.raw_text,
             "perturbed_response_text": self.perturbed_response.raw_text,
             "embedding_cosine_similarity": self.embedding_cosine_similarity,
+            "similarity_method": self.similarity_method,
             "sentiment_base": self.sentiment_base,
             "sentiment_perturbed": self.sentiment_perturbed,
             "sentiment_delta": self.sentiment_delta,
@@ -174,7 +178,7 @@ class HypothesisTestResult:
     baseline_mean: float
     target_mean: float
     observed_difference: float
-    effect_size_cohens_d: float
+    effect_size_cohens_d: Optional[float]
     
     # Statistical tests
     permutation_p_value: float
@@ -190,7 +194,13 @@ class HypothesisTestResult:
     is_significant_bonferroni: bool = False
     
     # Bootstrap Confidence Interval for the difference
-    bootstrap_ci_95: List[float] = field(default_factory=lambda: [0.0, 0.0])
+    bootstrap_ci_95: List[Optional[float]] = field(default_factory=lambda: [0.0, 0.0])
+
+    analysis_unit: str = "template"
+    observation_count: int = 0
+    inference_note: str = ""
+    condition: str = "DEMOGRAPHIC"
+    calibration_reference: str = "baseline"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

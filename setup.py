@@ -13,6 +13,7 @@ setup(
         "streamlit>=1.30.0",
         "matplotlib>=3.7.0",
     ],
+    extras_require={"embeddings": ["sentence-transformers>=3.0.0"]},
     entry_points={
         "console_scripts": [
             "promptbench=promptbench.cli:main",

@@ -216,6 +216,12 @@ class TestPromptBenchPipeline(unittest.TestCase):
         self.assertIn("[DECISION: ACCEPT]", resp.raw_text)
         self.assertGreaterEqual(resp.latency_ms, 0.0)
 
+        fake_api_response["candidates"][0]["finishReason"] = "MAX_TOKENS"
+        mock_resp_obj.read.return_value = json.dumps(fake_api_response).encode("utf-8")
+        truncated = provider.generate_response("A candidate", "Evaluator", "p_truncated")
+        self.assertIn("output token limit", truncated.metadata["error"])
+        self.assertEqual(truncated.metadata["finish_reason"], "MAX_TOKENS")
+
     def test_gemini_orchestrator_config(self):
         """Test QueryOrchestrator factory properly instantiates GeminiProvider."""
         config = PromptBenchConfig()

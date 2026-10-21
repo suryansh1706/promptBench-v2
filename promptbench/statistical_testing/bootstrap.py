@@ -14,6 +14,8 @@ class BootstrapCI:
     """
 
     def __init__(self, resamples: int = 2000, confidence_level: float = 0.95, seed: int = 42):
+        if resamples < 1 or not 0 < confidence_level < 1:
+            raise ValueError("resamples must be positive and confidence_level between 0 and 1")
         self.resamples = resamples
         self.confidence_level = confidence_level
         self.seed = seed

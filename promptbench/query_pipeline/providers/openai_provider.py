@@ -28,12 +28,14 @@ class OpenAIProvider(BaseLLMProvider):
         max_retries: int = 5,
         base_delay: float = 1.0,
         max_delay: float = 30.0,
+        max_tokens: int = 512,
     ):
         super().__init__(model_name=model_name, temperature=temperature, seed=seed)
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         self.max_retries = max_retries
         self.base_delay = base_delay
         self.max_delay = max_delay
+        self.max_tokens = max_tokens
 
     def generate_response(
         self,
@@ -54,7 +56,7 @@ class OpenAIProvider(BaseLLMProvider):
             "model": self.model_name,
             "temperature": self.temperature,
             "seed": self.seed,
-            "max_tokens": 500,
+            "max_tokens": self.max_tokens,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt_text},
@@ -76,7 +78,7 @@ class OpenAIProvider(BaseLLMProvider):
                 with urllib.request.urlopen(req, timeout=30) as resp:
                     resp_data = json.loads(resp.read().decode("utf-8"))
                     choices = resp_data.get("choices", [])
-                    raw_text = choices[0]["message"]["content"] if choices else "ERROR: No response choices."
+                    raw_text = (choices[0].get("message", {}).get("content") or "ERROR: Empty or refused completion.") if choices else "ERROR: No response choices."
 
                     latency_ms = (time.time() - start_time) * 1000.0
                     decision, score = self.parse_decision_and_score(raw_text)
@@ -92,14 +94,20 @@ class OpenAIProvider(BaseLLMProvider):
                         latency_ms=latency_ms,
                         temperature=self.temperature,
                         seed=self.seed,
-                        metadata={"attempt": attempt + 1, "usage": resp_data.get("usage", {})},
+                        metadata={"attempt": attempt + 1, "usage": resp_data.get("usage", {}),
+                                  "requested_model": self.model_name, "model_version": resp_data.get("model"),
+                                  "system_fingerprint": resp_data.get("system_fingerprint"),
+                                  "error": raw_text if raw_text.startswith("ERROR:") else None},
                     )
 
             except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as e:
                 last_error = e
                 backoff_cap = min(self.max_delay, self.base_delay * (2 ** attempt))
                 sleep_duration = random.uniform(0, backoff_cap)
-                time.sleep(sleep_duration)
+                if isinstance(e, urllib.error.HTTPError) and e.code in (400, 401, 403, 404):
+                    break
+                if attempt + 1 < self.max_retries:
+                    time.sleep(sleep_duration)
 
         latency_ms = (time.time() - start_time) * 1000.0
         return ModelResponse(

@@ -4,6 +4,8 @@ Provides distribution-free statistical hypothesis testing for paired counterfact
 """
 
 import random
+import itertools
+import math
 from typing import List, Tuple, Dict, Any
 
 
@@ -15,6 +17,8 @@ class PermutationTest:
     """
 
     def __init__(self, resamples: int = 10000, seed: int = 42):
+        if resamples < 1:
+            raise ValueError("resamples must be positive")
         self.resamples = resamples
         self.seed = seed
 
@@ -41,11 +45,20 @@ class PermutationTest:
         if n == 0:
             return 0.0, 1.0, 0.0
 
+        if not all(math.isfinite(value) for value in differences):
+            raise ValueError("differences must contain finite numbers")
         t_obs = sum(differences) / n
         abs_t_obs = abs(t_obs)
 
         if abs_t_obs == 0.0:
             return 0.0, 1.0, 0.0
+
+        if n <= 16 and 2 ** n <= self.resamples:
+            extreme = sum(
+                abs(sum(sign * d for sign, d in zip(signs, differences)) / n) >= abs_t_obs - 1e-12
+                for signs in itertools.product((-1, 1), repeat=n)
+            )
+            return t_obs, extreme / (2 ** n), abs_t_obs
 
         rng = random.Random(self.seed)
         extreme_count = 0

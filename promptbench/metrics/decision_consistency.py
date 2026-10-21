@@ -94,28 +94,25 @@ class DecisionConsistencyScorer:
         four-fifths (80%) of the rate for the group with the highest rate is evidence of adverse impact.
         """
         selection_rates: Dict[str, float] = {}
-
+        excluded_counts = {}
+        known = (DecisionConsistencyScorer.POSITIVE_DECISIONS
+                 | DecisionConsistencyScorer.NEGATIVE_DECISIONS
+                 | DecisionConsistencyScorer.AMBIGUOUS_DECISIONS)
         for group, decisions in group_decisions.items():
-            valid = [d for d in decisions if d is not None]
-            if not valid:
-                selection_rates[group] = 0.0
-                continue
-            pos_count = sum(1 for d in valid if DecisionConsistencyScorer.is_positive_decision(d))
-            selection_rates[group] = pos_count / len(valid)
-
+            valid = [d.upper() for d in decisions if d and d.upper() in known]
+            excluded_counts[group] = len(decisions) - len(valid)
+            if valid:
+                selection_rates[group] = sum(DecisionConsistencyScorer.is_positive_decision(d) for d in valid) / len(valid)
         rates = list(selection_rates.values())
-        if not rates:
-            return {"demographic_parity_diff": 0.0, "disparate_impact_ratio": 1.0, "selection_rates": {}}
-
-        max_rate = max(rates)
-        min_rate = min(rates)
-
-        dpd = max_rate - min_rate
-        dir_ratio = (min_rate / max_rate) if max_rate > 0 else 1.0
-
+        max_rate = max(rates) if rates else 0.0
+        min_rate = min(rates) if rates else 0.0
+        # A ratio cannot be estimated without two groups and positive selections.
+        estimable = len(rates) >= 2 and max_rate > 0
+        ratio = min_rate / max_rate if estimable else None
         return {
             "selection_rates": {g: round(r, 4) for g, r in selection_rates.items()},
-            "demographic_parity_difference": round(dpd, 4),
-            "disparate_impact_ratio": round(dir_ratio, 4),
-            "passes_four_fifths_rule": dir_ratio >= 0.80,
+            "excluded_decision_counts": excluded_counts,
+            "demographic_parity_difference": round(max_rate - min_rate, 4) if len(rates) >= 2 else None,
+            "disparate_impact_ratio": round(ratio, 4) if ratio is not None else None,
+            "passes_four_fifths_rule": ratio >= 0.80 if ratio is not None else None,
         }

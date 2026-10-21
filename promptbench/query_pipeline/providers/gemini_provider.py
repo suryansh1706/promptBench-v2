@@ -16,33 +16,27 @@ from ...core.types import ModelResponse
 
 class GeminiProvider(BaseLLMProvider):
     """
-    Direct REST integration with Google Gemini (gemini-3.8-flash, gemini-3.7-flash, gemini-3.5-flash, etc.).
+    Direct REST integration with Google Gemini (user-selected model IDs).
     Implements exponential backoff with full jitter to handle rate limits (HTTP 429).
     """
 
-    MODEL_ALIASES = {
-        "gemini-1.5-flash": "gemini-3.8-flash",
-        "gemini-2.0-flash": "gemini-3.8-flash",
-        "gemini-2.5-flash": "gemini-3.8-flash",
-        "gemini-flash": "gemini-3.8-flash",
-    }
-
     def __init__(
         self,
-        model_name: str = "gemini-3.8-flash",
+        model_name: str = "gemini-3.5-flash-lite",
         api_key: Optional[str] = None,
         temperature: float = 0.0,
         seed: int = 42,
         max_retries: int = 5,
         base_delay: float = 1.0,
         max_delay: float = 30.0,
+        max_tokens: int = 512,
     ):
-        resolved_model = self.MODEL_ALIASES.get(model_name, model_name)
-        super().__init__(model_name=resolved_model, temperature=temperature, seed=seed)
+        super().__init__(model_name=model_name, temperature=temperature, seed=seed)
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
         self.max_retries = max_retries
         self.base_delay = base_delay
         self.max_delay = max_delay
+        self.max_tokens = max_tokens
 
     def generate_response(
         self,
@@ -57,7 +51,7 @@ class GeminiProvider(BaseLLMProvider):
                 "or pass api_key to GeminiProvider."
             )
 
-        endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateContent?key={self.api_key}"
+        endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateContent"
         
         payload = {
             "contents": [
@@ -73,13 +67,15 @@ class GeminiProvider(BaseLLMProvider):
             },
             "generationConfig": {
                 "temperature": self.temperature,
-                "maxOutputTokens": 600,
+                "maxOutputTokens": self.max_tokens,
+                "seed": self.seed,
             }
         }
 
         data_bytes = json.dumps(payload).encode("utf-8")
         headers = {
             "Content-Type": "application/json",
+            "x-goog-api-key": self.api_key,
             "User-Agent": "PromptBench-Auditor/1.0",
         }
 
@@ -106,6 +102,10 @@ class GeminiProvider(BaseLLMProvider):
 
                     latency_ms = (time.time() - start_time) * 1000.0
                     decision, score = self.parse_decision_and_score(raw_text)
+                    finish_reason = candidates[0].get("finishReason") if candidates else None
+                    error = raw_text if raw_text.startswith(("ERROR:", "BLOCKED:")) else None
+                    if finish_reason == "MAX_TOKENS":
+                        error = "Generation stopped at the output token limit; response is incomplete."
 
                     return ModelResponse(
                         response_id=f"gemini_{prompt_id}_{int(time.time()*1000)}",
@@ -118,7 +118,9 @@ class GeminiProvider(BaseLLMProvider):
                         latency_ms=latency_ms,
                         temperature=self.temperature,
                         seed=self.seed,
-                        metadata={"attempt": attempt + 1, "usage": resp_data.get("usageMetadata", {})},
+                        metadata={"attempt": attempt + 1, "usage": resp_data.get("usageMetadata", {}),
+                                  "requested_model": self.model_name, "model_version": resp_data.get("modelVersion"),
+                                  "finish_reason": finish_reason, "error": error},
                     )
 
             except urllib.error.HTTPError as e:
@@ -138,13 +140,15 @@ class GeminiProvider(BaseLLMProvider):
 
                 backoff_cap = min(self.max_delay, self.base_delay * (2 ** attempt))
                 sleep_duration = random.uniform(0, backoff_cap)
-                time.sleep(sleep_duration)
+                if attempt + 1 < self.max_retries:
+                    time.sleep(sleep_duration)
 
             except (urllib.error.URLError, TimeoutError) as e:
                 last_error = str(e)
                 backoff_cap = min(self.max_delay, self.base_delay * (2 ** attempt))
                 sleep_duration = random.uniform(0, backoff_cap)
-                time.sleep(sleep_duration)
+                if attempt + 1 < self.max_retries:
+                    time.sleep(sleep_duration)
 
             except Exception as e:
                 last_error = str(e)
