@@ -1,0 +1,23 @@
+{
+  "responses": 116,
+  "finish_reasons": {
+    "stop": 116
+  },
+  "errors": 0,
+  "parsed_decisions": 116,
+  "parsed_scores": 116,
+  "duplicate_prompt_ids": 0,
+  "duplicate_response_ids": 0,
+  "cache_hits": 0,
+  "distinct_response_texts": 21,
+  "completion_tokens_total": 2755,
+  "completion_tokens_min": 21,
+  "completion_tokens_max": 33,
+  "justification_word_count_method": "Words after removing bracketed DECISION/SCORE fields and an optional Justification/Rationale label; regex word boundaries. No raw text exported.",
+  "justifications_measurable": 116,
+  "justifications_unmeasurable": 0,
+  "justifications_over_25_words": 0,
+  "justification_words_min": 6,
+  "justification_words_max": 15,
+  "compliance_note": "Length violations are disclosed, not removed from results. Identical answer text can legitimately recur; unique prompt/response IDs check observation duplication."
+}
