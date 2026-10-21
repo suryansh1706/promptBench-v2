@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 title Calibrated Audit Dashboard
 echo ========================================================
 echo Launching Calibrated Audit Demographic Bias Web Dashboard...

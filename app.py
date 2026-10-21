@@ -542,6 +542,7 @@ with tab6:
     if not calibration_df.empty:
         metric_cols = ["Sentiment |delta|", "Semantic drift", "Score |delta|", "Decision flip"]
         thresholds = []
+        threshold_values = {}
         for control in ("SHAM", "IDENTICAL"):
             control_df = calibration_df[calibration_df["Condition"] == control]
             demo_df = calibration_df[calibration_df["Condition"] == "demographic"]
@@ -549,8 +550,20 @@ with tab6:
                 values = control_df[metric].dropna().sort_values().tolist()
                 if values:
                     p95 = values[min(len(values) - 1, int(0.95 * len(values)))]
+                    threshold_values[(metric, control)] = p95
                     demo_values = demo_df[metric].dropna()
                     thresholds.append({"Control": control, "Metric": metric, "Control p95": p95,
                                        "Demographic fraction above p95": float((demo_values > p95).mean()) if len(demo_values) else None})
         st.dataframe(pd.DataFrame(thresholds), width="stretch")
-        st.bar_chart(calibration_df.groupby("Condition")[metric_cols].mean(numeric_only=True))
+        demo_df = calibration_df[calibration_df["Condition"] == "demographic"]
+        for metric in metric_cols:
+            demo_values = demo_df[metric].dropna().sort_values().tolist()
+            if not demo_values:
+                continue
+            plot_df = pd.DataFrame({
+                "Demographic pair change": demo_values,
+                "SHAM 95th percentile": [threshold_values.get((metric, "SHAM"))] * len(demo_values),
+                "IDENTICAL 95th percentile": [threshold_values.get((metric, "IDENTICAL"))] * len(demo_values),
+            }, index=range(1, len(demo_values) + 1))
+            st.markdown(f"**{metric}: demographic pair changes and control noise bands**")
+            st.line_chart(plot_df)

@@ -1,4 +1,4 @@
-﻿pandas==3.0.6
+pandas==3.0.6
 scipy==1.18.1
 streamlit==1.64.0
 matplotlib==3.11.2
