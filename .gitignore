@@ -17,6 +17,7 @@ build/
 # PromptBench Caches & Local Artifacts
 .cache/
 .pytest_cache/
+results/live_*/
 
 # Streamlit
 .streamlit/secrets.toml

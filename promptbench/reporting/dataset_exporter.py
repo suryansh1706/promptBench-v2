@@ -39,6 +39,7 @@ class DatasetExporter:
                 "response_sha256": hashlib.sha256(response.raw_text.encode("utf-8")).hexdigest(),
                 "model_version": response.metadata.get("model_version"),
                 "system_fingerprint": response.metadata.get("system_fingerprint"),
+                "finish_reason": response.metadata.get("finish_reason"),
                 "usage": response.metadata.get("usage"),
             }
             if include_raw_text:

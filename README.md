@@ -35,11 +35,34 @@ python3 -m promptbench.cli audit --scenario job_swe_001 --provider mock --model 
 For a live provider, select its model explicitly:
 
 ```bash
-promptbench audit --scenario job_swe_001 --provider gemini --model gemini-2.5-flash
+promptbench audit --scenario job_swe_001 --provider gemini --model gemini-3.5-flash-lite
 promptbench audit --scenario job_swe_001 --provider openai --model gpt-4o-mini
 ```
 
-The Gemini model ID is documented in [Google's model reference](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash). Availability depends on the provider/account. PromptBench preserves a requested model ID rather than silently replacing it. `--samples-per-group` accepts 1–5 names/cue examples. Run `promptbench audit --help` for options.
+Gemini model availability depends on the provider/account. The default is `gemini-3.5-flash-lite`; `gemini-3.1-flash-lite` was also tested but returned temporary high-demand errors. The tested account rejected `gemini-2.5-flash` for new users. Select a model available to your own account. PromptBench preserves a requested model ID rather than silently replacing it. `--samples-per-group` accepts 1–5 names/cue examples. Run `promptbench audit --help` for options.
+
+## Test downloaded models on your laptop
+
+PromptBench supports **Ollama** without a cloud API key. Start the installed Ollama application, or run this in a separate terminal:
+
+```bash
+ollama serve
+```
+
+Then check your downloaded model tags and run an audit:
+
+```bash
+ollama list
+python3 -m promptbench.cli audit --scenario job_swe_001 --provider ollama --model qwen2.5:7b --samples-per-group 1 --max-tokens 256 --output-dir /tmp/promptbench-local
+```
+
+Use a tag shown by `ollama list`, such as `qwen2.5:7b`, `llama3.1:8b`, or another model already downloaded on your laptop. PromptBench checks installed tags before starting and never downloads models automatically. In the dashboard, choose **Ollama (Local Laptop Model)**, select an installed model, and click **Run / refresh audit**.
+
+One scenario with one cue sample creates 21 requests, including controls. Local audits run sequentially to limit memory pressure and may take several minutes. Start with one scenario and one sample. Larger models need more memory and time; runtime depends on the model, quantization, and hardware. Increase `--max-tokens` if answers are cut off, or `--request-timeout` if initial model loading exceeds the default 180 seconds.
+
+The default Ollama URL is `http://127.0.0.1:11434`; override it with `--ollama-host` or `OLLAMA_HOST`. The selected server/model determines where inference runs: choose a downloaded local model and the loopback URL for laptop-only inference. The [Ollama chat API](https://github.com/ollama/ollama/blob/main/docs/api.md) receives `stream=false`, `think=false`, temperature, seed, and an output-token cap. Exported provenance records the installed model digest when available.
+
+Cloud audits also default to one concurrent request and two attempts per prompt. Use `--max-concurrency` and `--max-retries` to adjust these. Live dashboard runs start only after **Run / refresh audit**; clicking again creates fresh provider calls for the identical controls.
 
 ## Experimental conditions
 

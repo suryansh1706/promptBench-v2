@@ -154,6 +154,7 @@ class TestCalibration(unittest.TestCase):
         self.assertEqual(record["condition"], comparison.condition)
         self.assertEqual(len(record["base_provenance"]["prompt_sha256"]), 64)
         self.assertEqual(record["base_provenance"]["model_name"], comparison.base_response.model_name)
+        self.assertIn("finish_reason", record["base_provenance"])
         private = DatasetExporter.comparison_record(comparison, include_raw_text=True)
         self.assertEqual(private["base_response_text"], comparison.base_response.raw_text)
         self.assertEqual(private["base_prompt_text"], comparison.base_prompt.rendered_prompt)

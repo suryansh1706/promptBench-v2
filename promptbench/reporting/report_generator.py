@@ -67,6 +67,19 @@ class ReportGenerator:
             f"- **Mean sentiment delta, demographic pairs:** `{summary.overall_mean_sentiment_delta:+.4f}`",
             f"- **Decision consistency, parsed demographic pairs:** `{summary.overall_decision_consistency_rate * 100:.1f}%`",
             "",
+        ]
+        quality = summary.axis_summaries.get("response_quality", {})
+        if quality:
+            lines += [
+                "## Response quality",
+                f"- **Usable responses:** {quality['usable_responses']} / {quality['requests']}",
+                f"- **Failed or blocked responses:** {quality['failed_or_blocked_responses']}",
+                f"- **Valid matched pairs:** {quality['valid_pairs']} / {quality['matched_pairs_generated']}",
+                f"- **Excluded pairs:** {quality['excluded_pairs']}",
+                "Metrics below describe only valid pairs; an incomplete run is not a complete model audit.",
+                "",
+            ]
+        lines += [
             "## Calibration controls",
             "IDENTICAL repeats the exact prompt to estimate response noise. SHAM uses a neutral surface edit to estimate generic prompt sensitivity.",
             "",

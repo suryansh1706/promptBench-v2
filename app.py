@@ -24,11 +24,14 @@ from promptbench.query_pipeline.orchestrator import QueryOrchestrator
 from promptbench.query_pipeline.providers.mock_provider import MockLLMProvider
 from promptbench.query_pipeline.providers.gemini_provider import GeminiProvider
 from promptbench.query_pipeline.providers.openai_provider import OpenAIProvider
+from promptbench.query_pipeline.providers.ollama_provider import OllamaProvider
 from promptbench.metrics.scorer import BiasScorer
 from promptbench.metrics.decision_consistency import DecisionConsistencyScorer
 from promptbench.statistical_testing.engine import StatisticalTestingEngine
 from promptbench.reporting.report_generator import ReportGenerator
 from promptbench.reporting.dataset_exporter import DatasetExporter
+from promptbench.reporting.dashboard_charts import (comparison_frame, condition_figure, group_figure,
+    contrast_figure, presentation_figure, figure_png)
 import os
 
 # Page Setup
@@ -45,9 +48,8 @@ st.markdown("""
     .main-header {
         font-size: 2.2rem;
         font-weight: 800;
-        background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 50%, #06B6D4 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: #172B4D;
+        letter-spacing: -0.04em;
         margin-bottom: 0.2rem;
     }
     .sub-header {
@@ -96,12 +98,16 @@ st.markdown("""
 
 
 @st.cache_data(show_spinner=False)
-def run_cached_audit(scenario_id: str, provider_name: str, model_name: str, samples_per_group: int):
+def run_cached_audit(scenario_id: str, provider_name: str, model_name: str, samples_per_group: int,
+                     ollama_host: str = "http://127.0.0.1:11434", run_id: int = 0):
     """Executes the complete 5-stage audit and caches the evaluated comparison dataset."""
     config = PromptBenchConfig()
     config.provider.provider_name = provider_name
     config.provider.model_name = model_name
     config.provider.temperature = 0.0
+    config.provider.ollama_base_url = ollama_host
+    config.max_concurrency = 1
+    config.max_retries = 2
 
     engine = PerturbationEngine()
     template_ids = [scenario_id] if scenario_id != "all" else [t.template_id for t in SCENARIO_TEMPLATES]
@@ -137,6 +143,12 @@ def run_cached_audit(scenario_id: str, provider_name: str, model_name: str, samp
         for axis in sorted({c.demographic_axis for c in comparisons if c.demographic_axis != "control"})
     }
     fairness["disparate_impact_ratio"] = None
+    failed = [r for r in responses.values() if BiasScorer._failed_response(r)]
+    fairness["run_quality"] = {
+        "total_requests": len(all_prompts), "failed_requests": len(failed),
+        "expected_pairs": len(paired_prompts), "valid_pairs": len(comparisons),
+        "failure_rows": [{"Prompt ID": r.prompt_id, "Reason": r.metadata.get("error", "Empty or blocked response")} for r in failed],
+    }
 
     return all_prompts, comparisons, hyp_results, fairness
 
@@ -147,26 +159,28 @@ st.sidebar.caption("MAIT CSE Minor Project (2023-2027)")
 
 selected_scenario = st.sidebar.selectbox(
     "Decision Scenario Domain",
-    options=[t.template_id for t in SCENARIO_TEMPLATES],
-    format_func=lambda x: f"{get_template_by_id(x).title} ({get_template_by_id(x).scenario_category})",
+    options=[t.template_id for t in SCENARIO_TEMPLATES] + ["all"],
+    format_func=lambda x: "All four scenario templates" if x == "all" else f"{get_template_by_id(x).title} ({get_template_by_id(x).scenario_category})",
 )
 
 provider_choice = st.sidebar.selectbox(
     "LLM Provider Engine",
-    options=["mock", "gemini", "openai"],
+    options=["mock", "gemini", "openai", "ollama"],
     format_func=lambda x: {
         "gemini": "Google Gemini API",
         "mock": "Mock LLM (Deterministic Offline Demo)",
         "openai": "OpenAI API (Paid Tier)",
+        "ollama": "Ollama (Local Laptop Model)",
     }[x],
     index=0,
 )
 
+ollama_host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 model_choice = "promptbench-mock-v1"
 if provider_choice == "gemini":
     model_choice = st.sidebar.selectbox(
         "Gemini Model",
-        ["gemini-2.5-flash", "gemini-2.5-pro"],
+        ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash"],
         index=0,
         help="Select a model available to your API key.",
     )
@@ -194,7 +208,23 @@ elif provider_choice == "openai":
         os.environ["OPENAI_API_KEY"] = api_key_input
         st.sidebar.success("✓ OpenAI API Key configured")
 
-samples_count = st.sidebar.slider("Names per Culture/Gender Group", min_value=1, max_value=3, value=2)
+elif provider_choice == "ollama":
+    ollama_host = st.sidebar.text_input("Ollama Server URL", value=ollama_host)
+    try:
+        installed = OllamaProvider(base_url=ollama_host).available_models()
+        tags = [model["name"] for model in installed if model.get("name")]
+    except ValueError as error:
+        st.warning(str(error))
+        st.info("Start Ollama with `ollama serve`, then refresh this page. No model download is started by PromptBench.")
+        st.stop()
+    if not tags:
+        st.warning("No Ollama models are installed. Install a model in Ollama, then refresh this page.")
+        st.stop()
+    preferred = "qwen2.5:7b" if "qwen2.5:7b" in tags else tags[0]
+    model_choice = st.sidebar.selectbox("Installed Local Model", tags, index=tags.index(preferred))
+    st.sidebar.caption("Uses the selected Ollama server without an API key. Local audits run one request at a time and can take several minutes.")
+
+samples_count = st.sidebar.slider("Names per Culture/Gender Group", min_value=1, max_value=3, value=1 if provider_choice == "ollama" else 2)
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("**Project Authors:**")
@@ -202,10 +232,9 @@ st.sidebar.markdown("• Parth Mudgal (00196402723)\n• Suryansh Rastogi (02696
 st.sidebar.markdown("**Project Guide:** Ms. Kajol Dahiya")
 
 # Main Header
-st.markdown("<div class='main-header'>PromptBench: LLM Demographic Bias Auditing Framework</div>", unsafe_allow_html=True)
+st.markdown("<div class='main-header'>PromptBench · Response Audit</div>", unsafe_allow_html=True)
 st.markdown(
-    "<div class='sub-header'>A statistically rigorous evaluation suite for detecting demographic & socioeconomic drift "
-    "across Large Language Model responses under invariant substantive qualifications.</div>",
+    "<div class='sub-header'>Compare matched applicant evaluations, inspect the controls, and explain what the evidence supports.</div>",
     unsafe_allow_html=True,
 )
 
@@ -224,181 +253,127 @@ elif provider_choice == "openai" and not os.environ.get("OPENAI_API_KEY"):
     st.warning("⚠️ **OpenAI API Key is required.** Please enter your `sk-...` key in the sidebar, or switch to **Mock LLM**.")
     st.stop()
 
-# Run Audit Pipeline
+# Live runs start explicitly, and each press gets a fresh run identity so
+# identical controls are actual requests rather than a Streamlit cache replay.
+run_id = 0
+if provider_choice != "mock":
+    signature = (selected_scenario, provider_choice, model_choice, samples_count, ollama_host)
+    if st.sidebar.button("Run / refresh audit", type="primary"):
+        st.session_state["active_audit"] = signature
+        st.session_state["audit_run_id"] = time.time_ns()
+    if st.session_state.get("active_audit") != signature:
+        st.info("Choose your model and parameters, then select Run / refresh audit in the sidebar.")
+        st.stop()
+    run_id = st.session_state["audit_run_id"]
+
 with st.spinner(f"Executing PromptBench 5-Stage Audit Pipeline using {provider_choice.upper()} ({model_choice})..."):
-    all_prompts, comparisons, hyp_results, fairness = run_cached_audit(
-        selected_scenario, provider_choice, model_choice, samples_count
-    )
+    try:
+        all_prompts, comparisons, hyp_results, fairness = run_cached_audit(
+            selected_scenario, provider_choice, model_choice, samples_count, ollama_host, run_id
+        )
+    except ValueError as error:
+        st.error(str(error))
+        st.stop()
+if not comparisons:
+    st.error("No valid response comparisons were produced. Check that the model/server is available, then run the audit again.")
+    st.stop()
 
 
-# Compute Top Metrics
+# Evidence and data quality stay visible above every view.
 demographic_comparisons = [c for c in comparisons if c.demographic_axis != "control"]
 control_comparisons = [c for c in comparisons if c.demographic_axis == "control"]
-mean_sim = np.mean([c.embedding_cosine_similarity for c in demographic_comparisons]) if demographic_comparisons else 0.0
-mean_sent_delta = np.mean([c.sentiment_delta for c in demographic_comparisons]) if demographic_comparisons else 0.0
 decided_pairs = [c for c in demographic_comparisons if c.decision_matches is not None]
-decision_match_rate = sum(1 for c in decided_pairs if c.decision_matches) / len(decided_pairs) if decided_pairs else 0.0
-disparate_impact = fairness.get("disparate_impact_ratio")
-significant_count = sum(1 for r in hyp_results if r.is_significant_fdr)
+decision_match_rate = sum(c.decision_matches for c in decided_pairs) / len(decided_pairs) if decided_pairs else None
+significant_count = sum(r.is_significant_fdr for r in hyp_results)
+template_count = len({p.template_id for p in all_prompts})
+quality = fairness.get("run_quality", {})
+frame = comparison_frame(comparisons)
+source = "Programmed mock demonstration" if provider_choice == "mock" else "Local Ollama model" if provider_choice == "ollama" else "Live cloud model"
+st.caption(f"{source.upper()}  /  {model_choice}  /  English · single-turn · synthetic applicants")
+if provider_choice == "mock":
+    st.info("Demonstration data: the mock model has programmed score and tone changes. These results explain the audit workflow and are not findings about a deployed AI.")
+if template_count < 2:
+    st.info("One scenario template (n = 1). Results are descriptive; confidence intervals and significance cannot be estimated from this run. More names do not increase the number of templates.")
+else:
+    st.caption(f"Inference uses {template_count} fixed scenario templates, not the number of paired answers. Results remain exploratory.")
+if quality.get("failed_requests"):
+    st.warning(f"{quality['failed_requests']} of {quality['total_requests']} requests failed or were blocked. {quality['valid_pairs']} of {quality['expected_pairs']} planned pairs can be evaluated.")
+    with st.expander("Inspect excluded requests"):
+        st.dataframe(pd.DataFrame(quality["failure_rows"]), width="stretch", hide_index=True)
 
-# Top KPI Summary Row
-col1, col2, col3, col4, col5 = st.columns(5)
-with col1:
-    st.markdown(f"""
-    <div class='metric-card'>
-        <div class='metric-label'>Cosine Similarity (S_C)</div>
-        <div class='metric-value'>{mean_sim:.4f}</div>
-        <span style='color:{"#16A34A" if mean_sim > 0.90 else "#DC2626"};font-size:0.8rem;'>
-            Descriptive response similarity
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
+columns = st.columns(4)
+columns[0].metric("Treatment pairs", len(demographic_comparisons), help="Valid comparisons after excluding failed requests; controls are separate.")
+columns[1].metric("Scenario templates", template_count, help="The statistical sample size is the number of scenario templates.")
+columns[2].metric("Decision agreement", f"{decision_match_rate:.1%}" if decision_match_rate is not None else "Unavailable", help=f"Based on {len(decided_pairs)} treatment pairs with two parsed decisions.")
+score_pairs = [c for c in demographic_comparisons if c.score_delta is not None]
+largest_score = max(score_pairs, key=lambda c: abs(c.score_delta)) if score_pairs else None
+columns[3].metric("Largest score change", f"{largest_score.score_delta:+.1f} points" if largest_score else "Unavailable", help="Largest absolute paired change among valid parsed scores, on a 0–100 scale.")
+st.caption(f"{len(control_comparisons)} control pairs · {len(decided_pairs)}/{len(demographic_comparisons)} treatment pairs have parsed decisions · similarity uses lexical cosine by default")
 
-with col2:
-    st.markdown(f"""
-    <div class='metric-card'>
-        <div class='metric-label'>Sentiment Delta (ΔS)</div>
-        <div class='metric-value'>{mean_sent_delta:+.4f}</div>
-        <span style='color:{"#16A34A" if abs(mean_sent_delta) < 0.05 else "#DC2626"};font-size:0.8rem;'>
-            Descriptive average
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
+summary_png = figure_png(presentation_figure(comparisons, model_choice, provider_choice, quality))
+st.download_button("Download presentation summary (.png)", data=summary_png, file_name=f"promptbench_{provider_choice}_{selected_scenario}_summary.png", mime="image/png")
 
-with col3:
-    st.markdown(f"""
-    <div class='metric-card'>
-        <div class='metric-label'>Decision Consistency</div>
-        <div class='metric-value'>{decision_match_rate * 100:.1f}%</div>
-        <span style='color:{"#16A34A" if decision_match_rate >= 0.90 else "#DC2626"};font-size:0.8rem;'>
-            {len(decided_pairs)} Pairs With Parsed Decisions
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col4:
-    st.markdown(f"""
-    <div class='metric-card'>
-        <div class='metric-label'>Selection-Rate Ratio</div>
-        <div class='metric-value'>{f'{disparate_impact:.2f}' if disparate_impact is not None else 'N/A'}</div>
-        <span style='font-size:0.8rem;color:#64748B;'>
-            Descriptive synthetic-sample measure
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col5:
-    st.markdown(f"""
-    <div class='metric-card'>
-        <div class='metric-label'>FDR-Significant Contrasts</div>
-        <div class='metric-value' style='color:{"#DC2626" if significant_count > 0 else "#16A34A"};'>{significant_count}</div>
-        <span style='font-size:0.8rem;color:#64748B;'>α = 0.05 Threshold</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# Tabs Interface
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📊 Executive Summary & Heatmaps",
-    "🔬 Statistical Rigor & Hypothesis Tests",
-    "🔍 Side-by-Side Prompt & Response Inspector",
-    "🧪 Live Interactive Audit Studio",
-    "📑 Academic LaTeX & Dataset Export",
+    "01  Results overview", "02  Calibration & uncertainty", "03  Paired answers",
+    "04  Custom audit", "05  Tables & data",
 ])
 
-# TAB 1: EXECUTIVE SUMMARY & HEATMAPS
 with tab1:
-    st.subheader("Cross-Demographic Response Disparity Heatmap")
-    st.caption("Descriptive response similarity by isolated demographic axis and group.")
-    if control_comparisons:
-        st.markdown("**Calibration controls** — IDENTICAL estimates repeat response noise; SHAM estimates sensitivity to a neutral surface edit.")
-        control_rows = [{"Condition": c.condition, "Similarity": c.embedding_cosine_similarity,
-                         "Sentiment delta": c.sentiment_delta, "Decision match": c.decision_matches}
-                        for c in control_comparisons]
-        st.dataframe(pd.DataFrame(control_rows).groupby("Condition", dropna=False).agg(
-            Pairs=("Similarity", "size"),
-            Mean_similarity=("Similarity", "mean"),
-            Mean_sentiment_delta=("Sentiment delta", "mean"),
-        ), width="stretch")
+    st.image(summary_png, caption="A presentation-ready summary. Group-level views below reveal differences hidden by condition averages.", width="stretch")
+    st.subheader("Explore one demographic axis at a time")
+    axes = sorted(frame.loc[~frame["Condition"].isin(["IDENTICAL", "SHAM"]), "Axis"].unique())
+    if axes:
+        c_axis, c_metric = st.columns(2)
+        selected_axis = c_axis.selectbox("Demographic axis", axes)
+        chart_metric = c_metric.selectbox("Result metric", ["Score change", "Sentiment change", "Lexical similarity"])
+        group_png = figure_png(group_figure(frame, selected_axis, chart_metric))
+        st.image(group_png, width="stretch")
+        st.caption("Bars are observed means, not confidence intervals. Score/sentiment signs indicate direction relative to the reference, not a judgment of harm or fairness.")
+        st.download_button("Download group chart (.png)", data=group_png, file_name="promptbench_group_comparison.png", mime="image/png")
+        with st.expander("Exact group values and sample counts"):
+            values = frame[frame["Axis"] == selected_axis].groupby("Group").agg(
+                Pairs=("Template", "size"), Templates=("Template", "nunique"),
+                Mean_score_change=("Score change", "mean"), Parsed_score_pairs=("Score change", "count"),
+                Mean_sentiment_change=("Sentiment change", "mean"), Mean_lexical_similarity=("Lexical similarity", "mean"))
+            st.dataframe(values.style.format(precision=4, na_rep="Unavailable"), width="stretch")
+    else:
+        st.info("Only control comparisons are available. No valid treatment pairs were produced.")
 
-    # Construct tabular heatmap matrix
-    records = []
-    for c in demographic_comparisons:
-        prof = c.perturbed_prompt.demographic_profile
-        records.append({
-            "Ethnicity": prof.attributes.get("culture_label", prof.ethnicity.replace("_", " ").title()),
-            "SES": prof.ses_level.capitalize() + " SES",
-            "Gender": prof.gender.capitalize(),
-            "Cosine Similarity": c.embedding_cosine_similarity,
-            "Sentiment Delta": c.sentiment_delta,
-            "Score Delta": c.score_delta,
-            "Axis": c.demographic_axis,
-            "Group": c.demographic_group,
-        })
-    df_metrics = pd.DataFrame(records)
-
-    col_h1, col_h2 = st.columns([3, 2])
-    with col_h1:
-        if not df_metrics.empty:
-            heatmap_df = df_metrics.pivot_table(index="Axis", columns="Group", values="Cosine Similarity", aggfunc="mean")
-            st.dataframe(heatmap_df.style.background_gradient(cmap="Blues", vmin=0, vmax=1).format("{:.4f}"), width="stretch")
-        else:
-            st.info("No valid demographic comparisons were returned.")
-
-    with col_h2:
-        st.markdown("**Selection Rate by Demographic Subgroup**")
-        sel_rates = fairness.get("selection_rates", {})
-        if sel_rates:
-            sr_df = pd.DataFrame(list(sel_rates.items()), columns=["Demographic Group", "Selection Rate"]).sort_values("Selection Rate", ascending=False)
-            st.bar_chart(sr_df.set_index("Demographic Group"), color="#2563EB")
-
-# TAB 2: STATISTICAL RIGOR & HYPOTHESIS TESTS
 with tab2:
-    st.subheader("Non-Parametric Hypothesis Tests & False Discovery Rate (FDR) Control")
-    st.markdown(
-        "Contrasts are computed within each template, then tested across independent templates using "
-        "paired permutation tests, bootstrap intervals, and Benjamini-Hochberg FDR correction. "
-        "A single selected scenario has one template, so its contrasts are descriptive."
-    )
-
+    st.subheader("Start with the controls")
+    st.markdown("**IDENTICAL** repeats the exact prompt through a new model call. **SHAM** adds formatting only. They show repeat variability and sensitivity to a neutral surface edit.")
+    control_metric = st.selectbox("Calibration metric", ["Score change", "Sentiment change"])
+    control_png = figure_png(condition_figure(frame, control_metric))
+    st.image(control_png, width="stretch")
+    st.caption("Blue: treatment conditions. Amber: controls. The sham is a formatting edit and is not matched to every treatment's edit length.")
+    st.download_button("Download calibration chart (.png)", data=control_png, file_name="promptbench_calibration.png", mime="image/png")
+    st.divider()
+    st.subheader("Observed contrasts and uncertainty")
+    st.markdown("Each dot is a mean contrast. A horizontal line appears only when an interval is estimable across templates. Controls are subtracted within a template before calibrated contrasts are tested.")
     if hyp_results:
-        table_rows = []
-        for r in hyp_results:
-            badge = "Below 0.05" if r.is_significant_fdr else "Not below 0.05"
-            table_rows.append({
-                "Demographic Axis": r.demographic_axis.capitalize(),
-                "Target Subgroup": r.target_group,
-                "Metric": r.metric_tested,
-                "Reference": r.calibration_reference,
-                "Templates (N)": r.sample_size,
-                "Pairs": r.observation_count,
-                "Observed Δ": f"{r.observed_difference:+.4f}",
-                "Paired effect d": f"{r.effect_size_cohens_d:+.2f}" if r.effect_size_cohens_d is not None else "N/A",
-                "Permutation p-val": f"{r.permutation_p_value:.4f}",
-                "BH FDR Adjusted p-val": f"{r.benjamini_hochberg_p_value:.4f}",
-                "95% Bootstrap CI": f"[{r.bootstrap_ci_95[0]:+.3f}, {r.bootstrap_ci_95[1]:+.3f}]" if all(x is not None for x in r.bootstrap_ci_95) else "N/A",
-                "FDR Significance": badge,
-            })
-        
-        df_hyp = pd.DataFrame(table_rows)
-        st.dataframe(df_hyp, width="stretch")
-
-        st.markdown("---")
-        st.subheader("Observed contrasts and 95% bootstrap intervals")
-        
-        # Prepare Forest Plot Data
-        chart_data = pd.DataFrame([
-            {
-                "Subgroup": f"{r.demographic_axis}:{r.target_group}:{r.metric_tested}:{r.calibration_reference}",
-                "Observed Delta": r.observed_difference,
-                "CI Lower": r.bootstrap_ci_95[0],
-                "CI Upper": r.bootstrap_ci_95[1],
-            }
-            for r in hyp_results
-        ]).set_index("Subgroup")
-        
-        st.line_chart(chart_data)
+        filter_cols = st.columns(3)
+        metrics = sorted({r.metric_tested for r in hyp_results})
+        conditions = sorted({r.condition for r in hyp_results})
+        references = sorted({r.calibration_reference for r in hyp_results}, key=lambda x: (x != "baseline", x))
+        test_metric = filter_cols[0].selectbox("Contrast metric", metrics)
+        test_condition = filter_cols[1].selectbox("Condition family", conditions, index=conditions.index("NAME") if "NAME" in conditions else 0)
+        test_reference = filter_cols[2].selectbox("Comparison reference", references)
+        filtered_results = [r for r in hyp_results if r.metric_tested == test_metric and r.condition == test_condition and r.calibration_reference == test_reference]
+        forest_png = figure_png(contrast_figure(filtered_results))
+        st.image(forest_png, width="stretch")
+        st.download_button("Download contrast chart (.png)", data=forest_png, file_name="promptbench_contrasts.png", mime="image/png")
+        st.caption("n counts templates; pairs are nested observations. Missing intervals remain unavailable. No connected lines imply a trajectory between unrelated groups.")
+        with st.expander("Statistical results for these filters"):
+            rows = [{"Axis": r.demographic_axis, "Group": r.target_group, "Templates (n)": r.sample_size,
+                     "Pairs": r.observation_count, "Mean contrast": r.observed_difference,
+                     "CI lower": r.bootstrap_ci_95[0], "CI upper": r.bootstrap_ci_95[1],
+                     "Paired dz": r.effect_size_cohens_d, "Permutation p": r.permutation_p_value,
+                     "BH adjusted p": r.benjamini_hochberg_p_value, "Interpretation": r.inference_note}
+                    for r in filtered_results]
+            st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+    else:
+        st.info("No valid contrasts are available for statistical analysis.")
+    st.caption("A significant response contrast does not establish discrimination; a nonsignificant result does not establish fairness or equivalence. Lexical cosine and custom sentiment require external instrument validation.")
 
 # TAB 3: SIDE-BY-SIDE PROMPT & RESPONSE INSPECTOR
 with tab3:
@@ -462,6 +437,9 @@ with tab4:
         cfg = PromptBenchConfig()
         cfg.provider.provider_name = provider_choice
         cfg.provider.model_name = model_choice
+        cfg.provider.ollama_base_url = ollama_host
+        cfg.max_concurrency = 1
+        cfg.max_retries = 2
         orch = QueryOrchestrator.from_config(cfg)
         resps = orch.execute_batch(c_prompts)
 

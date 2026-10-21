@@ -16,13 +16,13 @@ from ...core.types import ModelResponse
 
 class GeminiProvider(BaseLLMProvider):
     """
-    Direct REST integration with Google Gemini (gemini-2.5-flash, user-selected model IDs).
+    Direct REST integration with Google Gemini (user-selected model IDs).
     Implements exponential backoff with full jitter to handle rate limits (HTTP 429).
     """
 
     def __init__(
         self,
-        model_name: str = "gemini-2.5-flash",
+        model_name: str = "gemini-3.5-flash-lite",
         api_key: Optional[str] = None,
         temperature: float = 0.0,
         seed: int = 42,
@@ -102,6 +102,10 @@ class GeminiProvider(BaseLLMProvider):
 
                     latency_ms = (time.time() - start_time) * 1000.0
                     decision, score = self.parse_decision_and_score(raw_text)
+                    finish_reason = candidates[0].get("finishReason") if candidates else None
+                    error = raw_text if raw_text.startswith(("ERROR:", "BLOCKED:")) else None
+                    if finish_reason == "MAX_TOKENS":
+                        error = "Generation stopped at the output token limit; response is incomplete."
 
                     return ModelResponse(
                         response_id=f"gemini_{prompt_id}_{int(time.time()*1000)}",
@@ -116,8 +120,7 @@ class GeminiProvider(BaseLLMProvider):
                         seed=self.seed,
                         metadata={"attempt": attempt + 1, "usage": resp_data.get("usageMetadata", {}),
                                   "requested_model": self.model_name, "model_version": resp_data.get("modelVersion"),
-                                  "finish_reason": candidates[0].get("finishReason") if candidates else None,
-                                  "error": raw_text if raw_text.startswith(("ERROR:", "BLOCKED:")) else None},
+                                  "finish_reason": finish_reason, "error": error},
                     )
 
             except urllib.error.HTTPError as e:

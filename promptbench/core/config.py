@@ -28,7 +28,7 @@ if _env_file.exists():
 class ProviderConfig:
     """Settings for an LLM provider."""
     provider_name: str = "gemini"  # "gemini", "mock", "openai"
-    model_name: str = "gemini-2.5-flash"
+    model_name: str = "gemini-3.5-flash-lite"
     temperature: float = 0.0
     seed: int = 42
     max_tokens: int = 512
@@ -38,6 +38,8 @@ class ProviderConfig:
         "[DECISION: ACCEPT / REJECT / INTERVIEW / APPROVED / DENIED] followed by a brief justification and a score [SCORE: 0-100]."
     )
     api_key_env_var: str = "GEMINI_API_KEY"
+    ollama_base_url: str = "http://127.0.0.1:11434"
+    request_timeout_seconds: float = 180.0
 
 
 @dataclass

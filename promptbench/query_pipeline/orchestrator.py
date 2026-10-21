@@ -11,6 +11,7 @@ from .providers.base import BaseLLMProvider
 from .providers.gemini_provider import GeminiProvider
 from .providers.openai_provider import OpenAIProvider
 from .providers.mock_provider import MockLLMProvider
+from .providers.ollama_provider import OllamaProvider
 from ..core.types import PerturbedPrompt, ModelResponse
 from ..core.cache import ResponseCache
 from ..core.config import PromptBenchConfig
@@ -58,6 +59,14 @@ class QueryOrchestrator:
                 max_delay=config.backoff_max_seconds,
                 max_tokens=config.provider.max_tokens,
             )
+        elif provider_name == "ollama":
+            provider = OllamaProvider(
+                model_name=config.provider.model_name, temperature=config.provider.temperature,
+                seed=config.provider.seed, max_tokens=config.provider.max_tokens,
+                base_url=getattr(config.provider, "ollama_base_url", None),
+                timeout=getattr(config.provider, "request_timeout_seconds", 180.0),
+            )
+            provider.validate_model_available()
         elif provider_name == "mock":
             provider = MockLLMProvider(
                 model_name=config.provider.model_name,
@@ -69,7 +78,8 @@ class QueryOrchestrator:
             raise ValueError(f"Unknown provider: {provider_name}")
 
         # Optimize concurrency: live APIs use 3 concurrent workers to respect free tier RPM limits
-        effective_workers = config.max_concurrency if isinstance(provider, MockLLMProvider) else min(config.max_concurrency, 3)
+        effective_workers = (1 if isinstance(provider, OllamaProvider) else
+                             config.max_concurrency if isinstance(provider, MockLLMProvider) else min(config.max_concurrency, 3))
 
         return cls(
             provider=provider,

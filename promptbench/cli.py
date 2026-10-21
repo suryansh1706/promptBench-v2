@@ -4,6 +4,7 @@ Allows researchers to run end-to-end audits, perturbation generation, and statis
 """
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -34,10 +35,18 @@ def run_audit(args):
 
     config = PromptBenchConfig()
     config.provider.provider_name = args.provider
-    config.provider.model_name = args.model or ("promptbench-mock-v1" if args.provider == "mock" else "gemini-2.5-flash" if args.provider == "gemini" else "gpt-4o-mini")
+    defaults = {"mock": "promptbench-mock-v1", "gemini": "gemini-3.5-flash-lite", "openai": "gpt-4o-mini", "ollama": "qwen2.5:7b"}
+    config.provider.model_name = args.model or defaults[args.provider]
     config.provider.temperature = args.temperature
     config.provider.seed = args.seed
     config.enable_cache = not args.no_cache
+    config.max_concurrency = args.max_concurrency
+    config.max_retries = args.max_retries
+    config.provider.max_tokens = args.max_tokens
+    config.provider.ollama_base_url = args.ollama_host
+    config.provider.request_timeout_seconds = args.request_timeout
+    if args.max_concurrency < 1 or args.max_retries < 1 or args.max_tokens < 1 or args.request_timeout <= 0:
+        raise ValueError("Concurrency, retries, max tokens, and request timeout must be positive.")
 
     if args.samples_per_group < 1:
         raise ValueError("--samples-per-group must be at least 1")
@@ -66,13 +75,20 @@ def run_audit(args):
             print(f" -> Progress: {curr}/{total} prompts evaluated ({curr/total*100:.1f}%)", flush=True)
 
     responses = orchestrator.execute_batch(all_prompts, progress_callback=on_progress)
-    print(f" -> Received {len(responses)} model responses (some may be cache hits).")
+    successful_responses = sum(
+        bool(response.raw_text.strip()) and response.extracted_decision != "ERROR"
+        and not response.metadata.get("error")
+        for response in responses.values()
+    )
+    failed_responses = len(responses) - successful_responses
+    print(f" -> Received {len(responses)} responses: {successful_responses} usable, {failed_responses} failed or blocked.")
 
     # 3. Bias & Response Drift Scoring
     print("\n[Stage 3/5] Scoring Response Similarity, Sentiment, and Decisions...")
     scorer = BiasScorer()
     comparisons = scorer.evaluate_batch_pairs(paired_prompts, responses)
-    print(f" -> Evaluated {len(comparisons)} paired counterfactual comparisons.")
+    excluded_pairs = len(paired_prompts) - len(comparisons)
+    print(f" -> Evaluated {len(comparisons)} valid pairs; excluded {excluded_pairs} pairs with failed/blocked responses.")
 
     # 4. Statistical Hypothesis Testing
     print("\n[Stage 4/5] Executing Paired Permutation Tests & Benjamini-Hochberg FDR...")
@@ -118,11 +134,25 @@ def run_audit(args):
         for condition in sorted({c.condition for c in control_comparisons})
         if (items := [c for c in control_comparisons if c.condition == condition])
     }
+    fairness_metrics["response_quality"] = {
+        "requests": len(all_prompts),
+        "usable_responses": successful_responses,
+        "failed_or_blocked_responses": failed_responses,
+        "matched_pairs_generated": len(paired_prompts),
+        "valid_pairs": len(comparisons),
+        "excluded_pairs": excluded_pairs,
+    }
 
     recommendations = []
     significant_differences = [r for r in hyp_results if r.is_significant_fdr]
     if not demographic_comparisons:
         recommendations.append("No valid matched response pairs were available; check provider errors and run settings.")
+    if failed_responses:
+        recommendations.append(
+            f"{failed_responses} of {len(all_prompts)} provider responses failed or were blocked; "
+            f"{excluded_pairs} of {len(paired_prompts)} generated pairs were excluded. "
+            "Interpret metrics only for the usable subset."
+        )
     elif args.provider == "mock":
         recommendations.append("Mock provider results demonstrate the pipeline only; they are not evidence about a deployed LLM.")
     if significant_differences:
@@ -180,6 +210,7 @@ def run_audit(args):
     ratio = fairness_metrics.get("disparate_impact_ratio")
     print(f"  * Selection-rate ratio:      {ratio:.2f}" if ratio is not None else "  * Selection-rate ratio:      not estimable")
     print(f"  * FDR-significant contrasts: {len(significant_differences)}")
+    print(f"  * Usable responses/pairs:    {successful_responses}/{len(all_prompts)} responses; {len(comparisons)}/{len(paired_prompts)} pairs")
     print("=" * 70)
 
 
@@ -190,12 +221,17 @@ def main():
     # Subcommand: audit
     audit_parser = subparsers.add_parser("audit", help="Run end-to-end bias audit")
     audit_parser.add_argument("--scenario", type=str, default="job_swe_001", help="Template ID or 'all'")
-    audit_parser.add_argument("--provider", type=str, default="mock", choices=["gemini", "mock", "openai"])
+    audit_parser.add_argument("--provider", type=str, default="mock", choices=["gemini", "mock", "openai", "ollama"])
     audit_parser.add_argument("--model", type=str, default=None, help="Model name (defaults to a provider-specific model)")
     audit_parser.add_argument("--temperature", type=float, default=0.0, help="Sampling temperature")
     audit_parser.add_argument("--seed", type=int, default=42, help="Random seed")
     audit_parser.add_argument("--samples-per-group", type=int, default=2, help="Names per demographic category")
     audit_parser.add_argument("--output-dir", type=str, default="./results", help="Directory to save audit artifacts")
+    audit_parser.add_argument("--max-concurrency", type=int, default=1, help="Concurrent calls (default: 1; Ollama stays sequential)")
+    audit_parser.add_argument("--max-retries", type=int, default=2, help="Cloud API attempts per prompt (default: 2)")
+    audit_parser.add_argument("--max-tokens", type=int, default=512, help="Maximum output tokens per answer")
+    audit_parser.add_argument("--ollama-host", default=os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434"), help="Ollama server URL")
+    audit_parser.add_argument("--request-timeout", type=float, default=180.0, help="Ollama per-request timeout in seconds")
     audit_parser.add_argument("--no-cache", action="store_true", help="Bypass cached responses for this run")
 
     args = parser.parse_args()
