@@ -28,6 +28,18 @@ From the repository root:
 
 The test suite exercises controlled fields, uncached identical calls, sham controls, calibrated contrasts, template-level inference, missing decisions, failed requests, parsers, and instrument smoke checks without live model calls. Mock text and metrics are deterministic for the same settings; timestamps, response IDs, latency, and audit IDs are runtime provenance and can differ.
 
+Create a portable HTML results page from an exported audit dataset:
+
+```bash
+.venv/bin/python -m promptbench.reporting.results_page /tmp/promptbench-reproduction/audit_dataset.json /tmp/promptbench-reproduction/results.html
+```
+
+Open `results.html` in a browser. It contains aggregate coverage, group comparisons, controls, and calibrated contrasts; raw prompts, responses, and credentials are excluded.
+
+Long CLI runs save each returned response to a private local checkpoint in the output directory. Continue an interrupted run with the identical command plus `--resume`; completed observations, including identical controls, retain their original response IDs and are not queried again. Settings, prompt hashes, and the installed Ollama model digest must match. An interrupted in-flight request may already have executed before it could be recorded; any retry remains the same planned observation. Saved failures are retained rather than silently retried. Choose a new output directory for a new experiment.
+
+Use `--template-ids job_swe_001 loan_sb_001 tenant_res_001` to select a subset. `--brief-output` requests one decision, one score, and a justification sentence of at most 25 words; this is a distinct response profile and should not be pooled with unrestricted answers. The manifest records the exact instruction and token cap. `responses.private.jsonl` contains raw model answers for local recovery, is restricted to its owner and ignored by Git; share the minimized `audit_dataset.json` or HTML report instead.
+
 A single-scenario run is useful for inspecting answers:
 
 ```bash

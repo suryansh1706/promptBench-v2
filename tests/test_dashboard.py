@@ -65,6 +65,28 @@ class TestDashboard(unittest.TestCase):
         self.assertEqual(len(at.exception), 0)
         self.assertEqual(next(m.value for m in at.metric if m.label == "Scenario templates"), str(len(SCENARIO_TEMPLATES)))
 
+    def test_mock_workflow_filters_inspector_custom_and_exports(self):
+        from streamlit.testing.v1 import AppTest
+        at = AppTest.from_file(str(ROOT / "app.py")).run(timeout=60)
+        def select(label, value):
+            next(s for s in at.selectbox if s.label == label).select(value).run(timeout=60)
+            self.assertEqual(len(at.exception), 0)
+        select("Demographic axis", "Gender")
+        select("Result metric", "Lexical similarity")
+        select("Calibration metric", "Sentiment change")
+        select("Condition family", "SES")
+        select("Comparison reference", "SHAM")
+        select("Select Counterfactual Pair to Inspect", 1)
+        self.assertTrue(next(t for t in at.text_area if t.label == "Variant Model Response").value)
+        next(b for b in at.button if "Run Live Audit on Custom Template" in b.label).click().run(timeout=60)
+        self.assertEqual(len(at.exception), 0)
+        self.assertTrue(any("Successfully evaluated" in item.value for item in at.success))
+        labels = [button.label for button in at.get("download_button")]
+        for label in ("Download group chart (.png)", "Download calibration chart (.png)", "⬇️ Download Full Audit Dataset (.JSON)", "⬇️ Download Flat Comparisons (.CSV)"):
+            self.assertIn(label, labels)
+        next(c for c in at.checkbox if c.label == "Include raw prompts and responses in JSON").check().run(timeout=60)
+        self.assertEqual(len(at.exception), 0)
+
     def test_local_selection_waits_without_inference(self):
         from streamlit.testing.v1 import AppTest
         at = AppTest.from_file(str(ROOT / "app.py")).run(timeout=60)

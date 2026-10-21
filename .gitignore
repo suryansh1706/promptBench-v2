@@ -18,6 +18,7 @@ build/
 .cache/
 .pytest_cache/
 results/live_*/
+responses.private.jsonl
 
 # Streamlit
 .streamlit/secrets.toml

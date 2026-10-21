@@ -160,7 +160,7 @@ st.sidebar.caption("MAIT CSE Minor Project (2023-2027)")
 selected_scenario = st.sidebar.selectbox(
     "Decision Scenario Domain",
     options=[t.template_id for t in SCENARIO_TEMPLATES] + ["all"],
-    format_func=lambda x: "All four scenario templates" if x == "all" else f"{get_template_by_id(x).title} ({get_template_by_id(x).scenario_category})",
+    format_func=lambda x: f"All {len(SCENARIO_TEMPLATES)} scenario templates" if x == "all" else f"{get_template_by_id(x).title} ({get_template_by_id(x).scenario_category})",
 )
 
 provider_choice = st.sidebar.selectbox(
