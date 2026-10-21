@@ -241,7 +241,10 @@ def run_audit(args):
             summary.audit_recommendations.append("Benjamini-Hochberg correction was applied across all testable metrics and models in this multi-model run.")
         else:
             summary.audit_recommendations.append("No group/metric comparisons had enough non-degenerate samples for inference across the requested models.")
+    combined_comparisons = [comparison for _, comparisons, _, _ in completed_runs for comparison in comparisons]
+    combined_mixed_effects = StatisticalTestingEngine.fit_mixed_effects(combined_comparisons)
     for summary, comparisons, results, output_dir in completed_runs:
+        summary.run_metadata["mixed_effects"] = combined_mixed_effects
         DatasetExporter.export_to_json(summary, comparisons, output_dir / "audit_dataset.json")
         DatasetExporter.export_to_csv(comparisons, output_dir / "audit_comparisons.csv", results, summary.run_metadata)
         (output_dir / "audit_report.md").write_text(ReportGenerator.generate_markdown_summary(summary), encoding="utf-8")
