@@ -34,6 +34,19 @@ class TestPresentationFigures(unittest.TestCase):
             presentation_from_dataset(source, output)
             self.assertTrue(output.read_bytes().startswith(b"\x89PNG"))
 
+    def test_cli_quality_fields_mark_incomplete_slide(self):
+        from promptbench.reporting.dashboard_charts import presentation_from_dataset
+        with tempfile.TemporaryDirectory() as directory:
+            source, output = Path(directory) / "partial.json", Path(directory) / "partial.png"
+            source.write_text(json.dumps({"summary": {"provider": "gemini", "model_name": "test",
+                "axis_summaries": {"response_quality": {"matched_pairs_generated": 20,
+                    "valid_pairs": 1, "failed_or_blocked_responses": 2}}},
+                "comparisons": [{"condition": "NAME", "demographic_axis": "ethnicity",
+                    "demographic_group": "Cue", "template_id": "one", "score_delta": 0,
+                    "sentiment_delta": 0, "decision_matches": True}]}))
+            presentation_from_dataset(source, output)
+            self.assertTrue(output.read_bytes().startswith(b"\x89PNG"))
+
 
 @unittest.skipUnless(HAS_STREAMLIT and HAS_CHARTS, "Streamlit presentation dependencies are not installed")
 class TestDashboard(unittest.TestCase):

@@ -92,9 +92,13 @@ A single template yields descriptive means, p=1, and unavailable confidence inte
 
 Decision consistency excludes missing decisions from its denominator. Failed/blocked API completions are excluded from comparisons rather than scored as model evaluations. Selection rates ignore unknown decisions; a ratio is unavailable without at least two groups and one positive selection. Threshold flags are descriptive screening signals, not legal conclusions.
 
+Responses stopped by the provider's output-token limit are also excluded as incomplete. CLI reports record usable/failed response counts and valid/excluded pair counts; review these before interpreting any aggregate metric.
+
 The no-LLM instrument smoke checks verify known identical/disjoint texts and simple sentiment direction. They do not establish external validity; human-labeled evaluation and a larger scenario/name sample remain necessary for a research claim.
 
 ## Outputs and privacy
+
+The [submission guide](SUBMISSION_GUIDE.md) links the vetted October 21, 2026 local-model run and the explicitly incomplete Gemini run. The dashboard can download a presentation PNG; the minimized CLI JSON can also be rendered with `presentation_from_dataset` in `promptbench.reporting.dashboard_charts`. Every figure labels source, valid-pair coverage, and the template sample size. A provider run with failed responses must be presented as incomplete.
 
 Each CLI audit writes:
 
