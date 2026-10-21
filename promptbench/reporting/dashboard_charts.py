@@ -10,11 +10,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-BLUE = "#2563EB"
-TEAL = "#0891B2"
-AMBER = "#B45309"
-INK = "#172B4D"
-MUTED = "#5E6C84"
+BLUE = "#8EA8FF"
+TEAL = "#54D6C4"
+AMBER = "#F2BD67"
+INK = "#E6ECF5"
+MUTED = "#A5B2C5"
+DARK = "#0B1020"
+PANEL = "#111A2B"
+GRID = "#29364A"
 CONDITIONS = ["NAME", "EXPLICIT", "SES", "IDENTICAL", "SHAM"]
 
 
@@ -35,26 +38,29 @@ def comparison_frame(comparisons):
 
 def _style(ax):
     ax.spines[["top", "right", "left"]].set_visible(False)
-    ax.spines["bottom"].set_color("#DDE3EC")
+    ax.spines["bottom"].set_color(GRID)
     ax.tick_params(axis="both", labelsize=10, colors=MUTED, length=0)
-    ax.grid(axis="x", color="#E8EDF4", linewidth=.8)
+    ax.grid(axis="x", color=GRID, linewidth=.8)
     ax.set_axisbelow(True)
-    ax.set_facecolor("white")
+    ax.set_facecolor(PANEL)
+    ax.xaxis.label.set_color(MUTED)
+    ax.yaxis.label.set_color(MUTED)
+    ax.title.set_color(INK)
 
 
 def figure_png(figure):
     output = BytesIO()
-    figure.savefig(output, format="png", dpi=180, bbox_inches="tight", facecolor="white")
+    figure.savefig(output, format="png", dpi=180, bbox_inches="tight", facecolor=figure.get_facecolor())
     plt.close(figure)
     return output.getvalue()
 
 
 def condition_figure(frame, metric="Score change"):
-    fig, ax = plt.subplots(figsize=(9, 4.1), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(9, 4.1), constrained_layout=True, facecolor=DARK)
     _style(ax)
     rows = frame.dropna(subset=[metric]).groupby("Condition")[metric].agg(["mean", "count"]).reindex(CONDITIONS).dropna()
     if rows.empty:
-        ax.text(.5, .5, "No parsed values for this metric", ha="center", transform=ax.transAxes)
+        ax.text(.5, .5, "No parsed values for this metric", ha="center", color=INK, transform=ax.transAxes)
         ax.set_axis_off()
         return fig
     y = np.arange(len(rows))
@@ -77,10 +83,10 @@ def condition_figure(frame, metric="Score change"):
 def group_figure(frame, axis, metric):
     selected = frame[(frame["Axis"] == axis) & (~frame["Condition"].isin(["IDENTICAL", "SHAM"]))]
     rows = selected.dropna(subset=[metric]).groupby("Group")[metric].agg(["mean", "count"]).sort_values("mean")
-    fig, ax = plt.subplots(figsize=(9, max(3.5, .43 * len(rows) + 1.2)), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(9, max(3.5, .43 * len(rows) + 1.2)), constrained_layout=True, facecolor=DARK)
     _style(ax)
     if rows.empty:
-        ax.text(.5, .5, "No parsed values for this selection", ha="center", transform=ax.transAxes)
+        ax.text(.5, .5, "No parsed values for this selection", ha="center", color=INK, transform=ax.transAxes)
         ax.set_axis_off()
         return fig
     positions = np.arange(len(rows))
@@ -98,7 +104,7 @@ def group_figure(frame, axis, metric):
 
 
 def contrast_figure(results):
-    fig, ax = plt.subplots(figsize=(10, max(3.6, len(results) * .38 + 1.4)), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(10, max(3.6, len(results) * .38 + 1.4)), constrained_layout=True, facecolor=DARK)
     _style(ax)
     for index, result in enumerate(results):
         low, high = result.bootstrap_ci_95
@@ -112,7 +118,7 @@ def contrast_figure(results):
     ax.set_xlabel("Mean contrast; horizontal lines show bootstrap intervals when estimable", color=MUTED, labelpad=12)
     ax.set_title("Observed contrasts and uncertainty", loc="left", color=INK, fontsize=14, weight="bold", pad=15)
     if not results:
-        ax.text(.5, .5, "No contrasts for these filters", ha="center", transform=ax.transAxes)
+        ax.text(.5, .5, "No contrasts for these filters", ha="center", color=INK, transform=ax.transAxes)
     return fig
 
 
@@ -122,7 +128,7 @@ def presentation_figure(comparisons, model, provider, quality):
     treatments = frame[~frame["Condition"].isin(["IDENTICAL", "SHAM"])]
     parsed = treatments["Decision match"].dropna()
     templates = frame["Template"].nunique()
-    fig = plt.figure(figsize=(15, 8.5), facecolor="white")
+    fig = plt.figure(figsize=(15, 8.5), facecolor=DARK)
     fig.text(.055, .94, "CALIBRATED AUDIT  /  RESPONSE AUDIT", fontsize=12, color=TEAL, weight="bold")
     fig.text(.055, .885, "How much did the model's response change?", fontsize=24, color=INK, weight="bold")
     source = "PROGRAMMED MOCK DEMO" if provider == "mock" else "LOCAL MODEL RUN" if provider == "ollama" else "LIVE API RUN"
@@ -151,7 +157,7 @@ def presentation_figure(comparisons, model, provider, quality):
             ax1.annotate(f"{value:+.2f}", (value, i), xytext=(4 if value >= 0 else -4, 0), textcoords="offset points", ha="left" if value >= 0 else "right", va="center", fontsize=10)
         ax1.axvline(0, color=INK, linewidth=.8)
     else:
-        ax1.text(.5, .5, "No paired scores parsed", ha="center", transform=ax1.transAxes)
+        ax1.text(.5, .5, "No paired scores parsed", ha="center", color=INK, transform=ax1.transAxes)
     ax1.set_title("Mean score change vs reference", loc="left", color=INK, weight="bold", pad=16)
     ax1.set_xlabel("Score points on a 0–100 scale", color=MUTED, labelpad=10)
     ax2 = fig.add_axes([.67, .24, .26, .37])

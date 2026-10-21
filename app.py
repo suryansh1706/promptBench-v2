@@ -37,31 +37,31 @@ import os
 # Page Setup
 st.set_page_config(
     page_title="Calibrated Audit | Auditing LLM Demographic Bias",
-    page_icon="⚖️",
+    page_icon="\u2696\ufe0f",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Light, restrained dashboard styling. Streamlit widgets retain native behavior.
+# Dark dashboard styling with clear contrast and restrained accents.
 st.markdown("""
 <style>
     :root {
-        --ca-ink: #172235;
-        --ca-muted: #667085;
-        --ca-line: #e5e9f0;
-        --ca-surface: #ffffff;
-        --ca-canvas: #f7f9fc;
-        --ca-accent: #315efb;
+        --ca-ink: #E6ECF5;
+        --ca-muted: #A5B2C5;
+        --ca-line: #29364A;
+        --ca-surface: #111A2B;
+        --ca-canvas: #0B1020;
+        --ca-accent: #8EA8FF;
     }
     html, body, [data-testid="stAppViewContainer"] { background: var(--ca-canvas); color: var(--ca-ink); }
-    [data-testid="stHeader"] { background: rgba(247, 249, 252, .92); }
+    [data-testid="stHeader"] { background: rgba(11, 16, 32, .94); }
     [data-testid="stMainBlockContainer"] { max-width: 1440px; padding-top: 2rem; padding-bottom: 3rem; }
-    [data-testid="stSidebar"] { background: var(--ca-surface); border-right: 1px solid var(--ca-line); }
+    [data-testid="stSidebar"] { background: #0E1625; border-right: 1px solid var(--ca-line); }
     [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p, [data-testid="stCaptionContainer"] { color: var(--ca-muted); }
     h1, h2, h3, h4, p, label { color: var(--ca-ink); }
     h1 { letter-spacing: -.035em; font-weight: 680; }
     h2, h3 { letter-spacing: -.02em; font-weight: 620; }
-    [data-testid="stMetric"] { min-height: 112px; padding: 1rem 1.1rem; background: var(--ca-surface); border: 1px solid var(--ca-line); border-radius: 12px; box-shadow: 0 1px 2px rgba(16, 24, 40, .025); }
+    [data-testid="stMetric"] { min-height: 112px; padding: 1rem 1.1rem; background: var(--ca-surface); border: 1px solid var(--ca-line); border-radius: 12px; }
     [data-testid="stMetricLabel"] p { color: var(--ca-muted); font-size: .82rem; font-weight: 550; }
     [data-testid="stMetricValue"] { color: var(--ca-ink); font-weight: 680; }
     [data-testid="stTabs"] [data-baseweb="tab-list"] { gap: 1.25rem; border-bottom: 1px solid var(--ca-line); }
@@ -70,9 +70,10 @@ st.markdown("""
     [data-testid="stVerticalBlockBorderWrapper"] { background: var(--ca-surface); border-color: var(--ca-line); border-radius: 12px; }
     [data-testid="stAlert"] { border-radius: 10px; }
     .stButton button, .stDownloadButton button { border-radius: 8px; font-weight: 560; transition: border-color .15s ease, background .15s ease; }
-    .stButton button[kind="primary"] { background: var(--ca-accent); border-color: var(--ca-accent); }
+    .stButton button[kind="primary"] { background: var(--ca-accent); border-color: var(--ca-accent); color: #0B1020; }
     [data-testid="stDataFrame"] { border: 1px solid var(--ca-line); border-radius: 10px; }
     hr { border-color: var(--ca-line); }
+    code { color: #B8C8FF; }
     @media (max-width: 720px) {
         [data-testid="stMainBlockContainer"] { padding: 1.25rem 1rem 2rem; }
         [data-testid="stTabs"] [data-baseweb="tab-list"] { gap: .45rem; }
@@ -139,13 +140,14 @@ def run_cached_audit(scenario_id: str, provider_name: str, model_name: str, samp
 
 
 # Sidebar Controls
-st.sidebar.title("Audit setup")
-st.sidebar.caption("Configure the scenario and model for this run.")
+st.sidebar.title("Set up an audit")
+st.sidebar.caption("Choose what to evaluate and which model to use.")
 
 selected_scenario = st.sidebar.selectbox(
     "Scenario",
     options=[t.template_id for t in SCENARIO_TEMPLATES] + ["all"],
-    format_func=lambda x: "All four scenario templates" if x == "all" else f"{get_template_by_id(x).title} ({get_template_by_id(x).scenario_category})",
+    format_func=lambda x: "All scenarios (4 templates)" if x == "all" else f"{get_template_by_id(x).title} ({get_template_by_id(x).scenario_category})",
+    help="Each scenario is a fixed example prompt. Choose all scenarios to run the full set.",
 )
 
 provider_choice = st.sidebar.selectbox(
@@ -158,6 +160,7 @@ provider_choice = st.sidebar.selectbox(
         "ollama": "Ollama (local)",
     }[x],
     index=0,
+    help="Mock is an offline demo. Gemini and OpenAI use cloud APIs. Ollama uses an installed local model.",
 )
 
 ollama_host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
@@ -209,15 +212,23 @@ elif provider_choice == "ollama":
     model_choice = st.sidebar.selectbox("Installed Local Model", tags, index=tags.index(preferred))
     st.sidebar.caption("Uses the selected Ollama server without an API key. Local audits run one request at a time and can take several minutes.")
 
-samples_count = st.sidebar.slider("Examples per group", min_value=1, max_value=3, value=1 if provider_choice == "ollama" else 2)
+samples_count = st.sidebar.slider(
+    "Examples per group", min_value=1, max_value=3,
+    value=1 if provider_choice == "ollama" else 2,
+    help="Adds matched prompts per group. The statistical sample size is still the number of scenario templates.",
+)
 
 st.sidebar.markdown("---")
-st.sidebar.caption("Calibrated Audit | exploratory research prototype")
+if provider_choice == "mock":
+    st.sidebar.caption("The offline mock starts automatically and uses programmed demonstration responses.")
+else:
+    st.sidebar.caption("Live requests start only when you select Run audit. Provider charges may apply.")
 
 
 # Main Header
 st.title("Calibrated Audit")
-st.caption("Compare matched responses, inspect calibration controls, and review what the evidence supports.")
+st.caption("See whether a model responds differently when only an applicant's background cues change.")
+st.markdown("**Start here:** choose a scenario and model in the sidebar. Mock runs automatically; for a live model, select **Run audit**. Use the tabs to review results, controls, and individual answers.")
 
 # Validate API Key presence
 if provider_choice == "gemini" and not os.environ.get("GEMINI_API_KEY"):
@@ -239,11 +250,11 @@ elif provider_choice == "openai" and not os.environ.get("OPENAI_API_KEY"):
 run_id = 0
 if provider_choice != "mock":
     signature = (selected_scenario, provider_choice, model_choice, samples_count, ollama_host)
-    if st.sidebar.button("Run / refresh audit", type="primary"):
+    if st.sidebar.button("Run audit", type="primary", help="Send the selected prompts to the chosen model."):
         st.session_state["active_audit"] = signature
         st.session_state["audit_run_id"] = time.time_ns()
     if st.session_state.get("active_audit") != signature:
-        st.info("Choose your model and parameters, then select Run / refresh audit in the sidebar.")
+        st.info("Your setup is ready. Select **Run audit** in the sidebar to send the prompts to the model.")
         st.stop()
     run_id = st.session_state["audit_run_id"]
 
@@ -281,6 +292,14 @@ if quality.get("failed_requests"):
     st.warning(f"{quality['failed_requests']} of {quality['total_requests']} requests failed or were blocked. {quality['valid_pairs']} of {quality['expected_pairs']} planned pairs can be evaluated.")
     with st.expander("Inspect excluded requests"):
         st.dataframe(pd.DataFrame(quality["failure_rows"]), width="stretch", hide_index=True)
+
+with st.expander("How to read these results"):
+    st.markdown(
+        "- **Treatment pairs** compare a neutral reference with a profile where a background cue changed.\n"
+        "- **IDENTICAL** repeats the same prompt; **SHAM** changes formatting only. These controls help show ordinary response variation.\n"
+        "- **Scenario templates** are the statistical sample size. More examples within one template do not increase that count.\n"
+        "- A measured difference is a reason to inspect the paired answers. It does not, by itself, prove discrimination or fairness."
+    )
 
 columns = st.columns(4)
 columns[0].metric("Treatment pairs", len(demographic_comparisons), help="Valid comparisons after excluding failed requests; controls are separate.")
