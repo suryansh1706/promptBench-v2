@@ -1,16 +1,26 @@
-# Calibrated Audit
+# PromptBench
 
-Calibrated Audit is an exploratory, reproducible framework for auditing whether
-an LLM's response changes when the substantive qualifications of a synthetic
-applicant remain fixed but demographic or background cues change. The primary
-design is an English, text-only, single-turn hiring evaluation. Loan-eligibility
-and tenant-screening scenarios are included as extensions.
+PromptBench checks whether an AI gives the same kind of answer when an
+applicant's real qualifications stay the same but their name, pronouns,
+nationality, or background details change. It shows the AI the same kind of
+application with carefully controlled changes, then compares the decisions,
+scores, wording, and tone.
 
-This repository is a research prototype, not a validated fairness instrument.
-A measured response difference does not establish discrimination, legal
-non-compliance, or fairness in a real deployment. Results should be reported
-with the model identifier, prompt conditions, valid-pair coverage, controls,
-independent-template count, missing-response policy, and statistical limitations.
+The project includes an easy offline demo, tests for cloud and local models,
+statistical checks, reports, charts, and a dashboard. Its main example is a
+single-turn hiring evaluation in English, with loan and tenant scenarios
+available as extensions. The research framework is also called **Calibrated
+Audit** in the code and generated reports.
+
+In short: PromptBench helps researchers see whether small changes in an
+applicant's description can change an AI's response.
+
+PromptBench is an exploratory, reproducible research prototype, not a
+validated fairness instrument. A measured response difference does not
+establish discrimination, legal non-compliance, or fairness in a real
+deployment. Results should be reported with the model identifier, prompt
+conditions, valid-pair coverage, controls, independent-template count,
+missing-response policy, and statistical limitations.
 
 ## Research question and estimand
 
