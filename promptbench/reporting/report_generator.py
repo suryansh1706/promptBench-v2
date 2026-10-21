@@ -53,7 +53,7 @@ class ReportGenerator:
     def generate_markdown_summary(summary: AuditSummary) -> str:
         date = datetime.fromtimestamp(summary.timestamp, timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
         lines = [
-            "# Calibrated Audit Audit Report",
+            "# Calibrated Audit Report",
             f"**Audit ID:** `{summary.audit_id}`  ",
             f"**Evaluated Model:** `{summary.model_name}` ({summary.provider})  ",
             f"**Scenario Domain:** `{summary.scenario_category}`  ",

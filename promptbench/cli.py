@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
-from .core.config import Calibrated AuditConfig
+from .core.config import PromptBenchConfig
 from .core.types import AuditSummary
 from .perturbation.engine import PerturbationEngine
 from .perturbation.templates import SCENARIO_TEMPLATES, get_template_by_id
@@ -33,7 +33,7 @@ def run_audit(args):
     print(f"Scenario: {args.scenario} | Provider: {args.provider} | Model: {args.model or 'provider default'}")
     print("=" * 70)
 
-    config = Calibrated AuditConfig()
+    config = PromptBenchConfig()
     config.provider.provider_name = args.provider
     defaults = {"mock": "promptbench-mock-v1", "gemini": "gemini-3.5-flash-lite", "openai": "gpt-4o-mini", "ollama": "qwen2.5:7b"}
     config.provider.model_name = args.model or defaults[args.provider]
