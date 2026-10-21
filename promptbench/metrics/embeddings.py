@@ -1,6 +1,5 @@
 """
-Embedding-Based Semantic Cosine Similarity Scorer for Calibrated Audit.
-Measures semantic vector representation drift between base and perturbed responses.
+Cosine similarity for weighted lexical vectors or optional sentence embeddings.
 """
 
 import math
@@ -10,9 +9,9 @@ from typing import List, Dict, Optional, Tuple
 
 class CosineEmbeddingScorer:
     """
-    Computes semantic cosine similarity between text responses.
+    Computes cosine similarity between text response vectors.
     Features a dual-engine architecture:
-    1. Fast vectorized n-gram TF-IDF embedding (zero external dependencies)
+    1. Weighted unigram/bigram term-frequency vectors (no IDF; zero external dependencies)
     2. Optional Transformer-based sentence embeddings (sentence-transformers / MiniLM)
     """
 
@@ -20,20 +19,14 @@ class CosineEmbeddingScorer:
         self.use_transformer = use_transformer
         self.model_name = model_name
         self._st_model = None
-        self.backend = "tfidf"
-        self.fallback_reason = None
 
         if self.use_transformer:
             try:
                 from sentence_transformers import SentenceTransformer
                 self._st_model = SentenceTransformer(model_name)
-                self.backend = "sentence-transformers"
-            except Exception as exc:
-                # Keep offline/mock audits usable when the optional model package
-                # is absent or its weights are unavailable; record the fallback.
+            except ImportError:
                 self.use_transformer = False
                 self._st_model = None
-                self.fallback_reason = str(exc)
 
     @staticmethod
     def _tokenize(text: str) -> List[str]:
@@ -41,7 +34,7 @@ class CosineEmbeddingScorer:
         return re.findall(r"\b[a-zA-Z0-9_-]+\b", text.lower())
 
     def _get_tfidf_vector(self, text1: str, text2: str) -> Tuple[Dict[str, float], Dict[str, float]]:
-        """Constructs joint TF-IDF / term frequency vectors across two comparison texts."""
+        """Constructs joint weighted term-frequency vectors across two comparison texts."""
         tokens1 = self._tokenize(text1)
         tokens2 = self._tokenize(text2)
 
@@ -97,7 +90,7 @@ class CosineEmbeddingScorer:
             cos_sim = dot / (norm1 * norm2)
             return float(max(0.0, min(1.0, cos_sim)))
 
-        # Fallback high-performance n-gram TF-IDF cosine similarity
+        # Fallback weighted n-gram term-frequency cosine similarity
         v1, v2 = self._get_tfidf_vector(text_base, text_pert)
 
         dot_product = sum(v1[w] * v2[w] for w in v1)

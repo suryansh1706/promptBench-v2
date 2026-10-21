@@ -1,3 +1,7 @@
+# Historical, unverified output — do not cite
+
+This report predates the controlled design and cannot be reproduced with the available credentials. Its statistical and legal conclusions are unsupported. See [results provenance](README.md) and the fresh offline run in `verified_mock_all/`.
+
 # PromptBench Bias Audit Executive Report
 **Audit ID:** `audit_1790465578`  
 **Evaluated Model:** `gemini-3.8-flash` (Gemini)  

@@ -5,6 +5,7 @@
 *.key
 
 # Python
+.venv/
 __pycache__/
 *.py[cod]
 *$py.class
@@ -16,6 +17,7 @@ build/
 # PromptBench Caches & Local Artifacts
 .cache/
 .pytest_cache/
+results/live_*/
 
 # Streamlit
 .streamlit/secrets.toml

@@ -1,5 +1,5 @@
 """
-Data schemas and type definitions for Calibrated Audit.
+Data schemas and type definitions for PromptBench.
 Uses standard Python dataclasses for lightweight, zero-dependency serialization.
 """
 
@@ -77,7 +77,6 @@ class ModelResponse:
     seed: Optional[int] = 42
     timestamp: float = field(default_factory=time.time)
     cache_hit: bool = False
-    status: str = "ok"  # ok, error, empty, refusal
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -108,26 +107,23 @@ class PairwiseComparison:
     
     decision_base: Optional[str] = None
     decision_perturbed: Optional[str] = None
-    decision_matches: bool = True
+    decision_matches: Optional[bool] = None
     
     score_base: Optional[float] = None
     score_perturbed: Optional[float] = None
     score_delta: Optional[float] = None
-    condition: str = "demographic"
     
     lexical_jaccard_similarity: float = 1.0
     token_length_delta: int = 0
+    condition: str = "DEMOGRAPHIC"
+    similarity_method: str = "weighted_unigram_bigram_term_frequency_cosine"
     
     def to_dict(self) -> Dict[str, Any]:
         return {
             "pair_id": self.pair_id,
-            "rep_index": self.perturbed_prompt.metadata.get("rep_index", 0),
-            "model_name": self.perturbed_response.model_name,
-            "provider": self.perturbed_response.provider,
-            "model_name": self.perturbed_response.model_name,
-            "provider": self.perturbed_response.provider,
             "template_id": self.template_id,
             "scenario_category": self.scenario_category,
+            "condition": self.condition,
             "demographic_axis": self.demographic_axis,
             "demographic_group": self.demographic_group,
             "baseline_group": self.baseline_group,
@@ -136,21 +132,18 @@ class PairwiseComparison:
             "base_response_text": self.base_response.raw_text,
             "perturbed_response_text": self.perturbed_response.raw_text,
             "embedding_cosine_similarity": self.embedding_cosine_similarity,
+            "similarity_method": self.similarity_method,
             "sentiment_base": self.sentiment_base,
             "sentiment_perturbed": self.sentiment_perturbed,
             "sentiment_delta": self.sentiment_delta,
             "decision_base": self.decision_base,
             "decision_perturbed": self.decision_perturbed,
             "decision_matches": self.decision_matches,
-            "decision_flip": not self.decision_matches,
             "score_base": self.score_base,
             "score_perturbed": self.score_perturbed,
             "score_delta": self.score_delta,
             "lexical_jaccard_similarity": self.lexical_jaccard_similarity,
             "token_length_delta": self.token_length_delta,
-            "base_status": self.base_response.status,
-            "perturbed_status": self.perturbed_response.status,
-            "condition": self.condition,
         }
 
 
@@ -185,25 +178,29 @@ class HypothesisTestResult:
     baseline_mean: float
     target_mean: float
     observed_difference: float
-    effect_size_cohens_d: float
+    effect_size_cohens_d: Optional[float]
     
     # Statistical tests
-    permutation_p_value: Optional[float]
+    permutation_p_value: float
     wilcoxon_p_value: Optional[float] = None
     
     # Corrected p-values
-    raw_p_value: Optional[float] = 1.0
-    benjamini_hochberg_p_value: Optional[float] = None
-    bonferroni_p_value: Optional[float] = None
+    raw_p_value: float = 1.0
+    benjamini_hochberg_p_value: float = 1.0
+    bonferroni_p_value: float = 1.0
     
     # Significance indicators (alpha = 0.05)
     is_significant_fdr: bool = False
     is_significant_bonferroni: bool = False
     
     # Bootstrap Confidence Interval for the difference
-    bootstrap_ci_95: List[float] = field(default_factory=lambda: [0.0, 0.0])
-    status: str = "ok"
-    effect_size_ci_95: List[float] = field(default_factory=lambda: [0.0, 0.0])
+    bootstrap_ci_95: List[Optional[float]] = field(default_factory=lambda: [0.0, 0.0])
+
+    analysis_unit: str = "template"
+    observation_count: int = 0
+    inference_note: str = ""
+    condition: str = "DEMOGRAPHIC"
+    calibration_reference: str = "baseline"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -211,7 +208,7 @@ class HypothesisTestResult:
 
 @dataclass
 class AuditSummary:
-    """Comprehensive summary of an entire Calibrated Audit audit run."""
+    """Comprehensive summary of an entire PromptBench audit run."""
     audit_id: str
     timestamp: float
     provider: str
@@ -225,10 +222,6 @@ class AuditSummary:
     axis_summaries: Dict[str, Any]
     hypothesis_test_results: List[HypothesisTestResult]
     audit_recommendations: List[str]
-    total_demographic_pairs: int = 0
-    total_control_pairs: int = 0
-    excluded_response_counts: Dict[str, int] = field(default_factory=dict)
-    run_metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -239,14 +232,10 @@ class AuditSummary:
             "scenario_category": self.scenario_category,
             "total_prompts_tested": self.total_prompts_tested,
             "total_pairs_evaluated": self.total_pairs_evaluated,
-            "total_demographic_pairs": self.total_demographic_pairs,
-            "total_control_pairs": self.total_control_pairs,
             "overall_mean_similarity": self.overall_mean_similarity,
             "overall_mean_sentiment_delta": self.overall_mean_sentiment_delta,
             "overall_decision_consistency_rate": self.overall_decision_consistency_rate,
             "axis_summaries": self.axis_summaries,
             "hypothesis_test_results": [r.to_dict() for r in self.hypothesis_test_results],
             "audit_recommendations": self.audit_recommendations,
-            "excluded_response_counts": self.excluded_response_counts,
-            "run_metadata": self.run_metadata,
         }

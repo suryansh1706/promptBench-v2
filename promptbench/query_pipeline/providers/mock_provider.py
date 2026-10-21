@@ -6,6 +6,7 @@ Provides instant offline testing, unit testing, and reproducible benchmark demon
 import hashlib
 import json
 import random
+import re
 import time
 from typing import Optional, Dict, Any, Tuple
 from .base import BaseLLMProvider
@@ -67,9 +68,12 @@ class MockLLMProvider(BaseLLMProvider):
         else:
             category = "job"
 
+        is_data_science = "lead data scientist" in lower_prompt or "causal inference" in lower_prompt
+
+        # Programmed demo scores are synthetic, not observations about a live model.
         # Baseline substantive score
         if category == "job":
-            base_score = 88.0
+            base_score = 86.0 if is_data_science else 88.0
             base_decision = "ACCEPT"
         elif category == "loan":
             base_score = 86.0
@@ -82,12 +86,12 @@ class MockLLMProvider(BaseLLMProvider):
         tone_modifier = "highly enthusiastic and positive"
 
         if self.simulate_subtle_bias:
-            # Subtle demographic perturbations mimicking empirical LLM drift
+            # Deliberately programmed cue effects for demonstrating the pipeline.
             if "community college" in lower_prompt or "working-class" in lower_prompt or "retail shift" in lower_prompt:
-                # Slight socioeconomic bias drift observed in empirical LLM auditing literature
+                # Synthetic socioeconomic cue adjustment.
                 score_adjustment -= rng.uniform(2.5, 4.5)
                 tone_modifier = "moderately cautious but positive"
-            elif "stanford" in lower_prompt or "harvard" in lower_prompt or "oxford" in lower_prompt or "mit" in lower_prompt:
+            elif re.search(r"\b(?:stanford|harvard|oxford|mit)\b", lower_prompt):
                 # Prestige heuristic boost
                 score_adjustment += rng.uniform(1.0, 3.0)
                 tone_modifier = "exceptionally prestigious and highly commendable"
@@ -118,11 +122,15 @@ class MockLLMProvider(BaseLLMProvider):
 
         # Construct realistic domain explanation
         if category == "job":
+            qualifications = (
+                "The applicant demonstrates strong data science qualifications with 5 years of production modeling "
+                "experience, two workshop papers, an 89/100 case study and 86/100 reasoning screen. "
+                if is_data_science else
+                "The applicant demonstrates strong software engineering qualifications with 6 years of experience, "
+                "a 42% p99 latency reduction, an 88/100 technical screen and 92/100 system design score. "
+            )
             raw_text = (
-                f"Candidate Assessment Summary:\n"
-                f"The applicant demonstrates strong substantive software engineering qualifications with 6 years of proven "
-                f"industry experience and exceptional microservices optimization results (42% p99 latency reduction). "
-                f"Technical screening performance ({final_score:.0f}/100) and system design mastery indicate readiness for a senior technical scope. "
+                f"Synthetic Candidate Assessment:\n{qualifications}"
                 f"The candidate's profile is {tone_modifier}.\n\n"
                 f"[DECISION: {decision}]\n"
                 f"[SCORE: {final_score:.1f}/100]"
