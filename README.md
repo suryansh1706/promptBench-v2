@@ -1,127 +1,489 @@
 # Calibrated Audit
 
-Calibrated Audit explores how an AI response changes when a synthetic applicant's name, pronouns, nationality, or socioeconomic background cues change. Its main example is English, text-only, single-turn hiring evaluation; loan and tenant scenarios provide extensions.
+Calibrated Audit is an exploratory, reproducible framework for auditing whether
+an LLM's response changes when the substantive qualifications of a synthetic
+applicant remain fixed but demographic or background cues change. The primary
+design is an English, text-only, single-turn hiring evaluation. Loan-eligibility
+and tenant-screening scenarios are included as extensions.
 
-This is an exploratory research prototype. A significant response difference does not establish discrimination, legal noncompliance, or fairness across real-world uses.
+This repository is a research prototype, not a validated fairness instrument.
+A measured response difference does not establish discrimination, legal
+non-compliance, or fairness in a real deployment. Results should be reported
+with the model identifier, prompt conditions, valid-pair coverage, controls,
+independent-template count, missing-response policy, and statistical limitations.
 
-## Run it
+## Research question and estimand
 
-Python 3.12 or newer is required. Run the install and dashboard with the same Python environment. On this laptop, the existing `.venv` can be used directly:
+The central question is:
 
-```bash
-uv pip install --python .venv/bin/python -e .
-.venv/bin/python -m streamlit run app.py
+> Holding substantive qualifications and evaluation instructions constant, does
+> changing a synthetic applicant's name, pronouns, nationality, or bundled
+> socioeconomic cues change the model's decision, numerical score, wording, or
+> sentiment?
+
+For a metric \(m\), each treatment pair has a within-pair difference:
+
+`d_i = m(treatment_i) - m(reference_i)`
+
+The reference is shared within each scenario template. Because multiple names
+or cue examples can share one template-level reference, observations are nested.
+The statistical engine therefore averages valid pair differences within each
+template before inferential testing:
+
+`D_t = mean(d_i for observations i in template t)`
+
+The inferential sample size is the number of independent scenario templates,
+not the number of names, requests, or paired answers. The repository currently
+contains four fixed templates, so conclusions are exploratory and do not
+represent a random sample of hiring, lending, or housing decisions.
+
+## Contributions and research workflow
+
+The implementation provides:
+
+1. Controlled counterfactual prompt generation with explicit metadata.
+2. Two calibration controls: fresh identical calls and a formatting-only sham.
+3. Provider adapters for a deterministic mock model, Gemini, OpenAI, and Ollama.
+4. Structured parsing of decisions and 0--100 scores.
+5. Lexical similarity, optional sentence-transformer similarity, sentiment,
+   decision consistency, and disparity summaries.
+6. Failure-aware comparison and export logic.
+7. Template-level sign-flip tests, bootstrap intervals, effect sizes, and
+   multiple-testing correction.
+8. A Streamlit dashboard, CLI, JSON/CSV/Markdown/LaTeX exports, and tests.
+
+The complete implementation notes and assumptions are in
+[ALGORITHMS_GUIDE.md](ALGORITHMS_GUIDE.md). The presentation and submission
+guidance is in [PRESENTATION_NOTES.md](PRESENTATION_NOTES.md) and
+[SUBMISSION_GUIDE.md](SUBMISSION_GUIDE.md).
+
+## Repository layout
+
+- [`app.py`](app.py): Streamlit dashboard.
+- [`promptbench/perturbation/`](promptbench/perturbation): scenario templates,
+  demographic profiles, name banks, and counterfactual generation.
+- [`promptbench/query_pipeline/`](promptbench/query_pipeline): orchestration,
+  retries, caching, and provider adapters.
+- [`promptbench/metrics/`](promptbench/metrics): response scoring instruments.
+- [`promptbench/statistical_testing/`](promptbench/statistical_testing): paired
+  inference, bootstrap intervals, and multiple-testing corrections.
+- [`promptbench/reporting/`](promptbench/reporting): reports, exports, and
+  presentation charts.
+- [`tests/`](tests): unit, integration, provider-wire-format, and dashboard
+  tests.
+- [`results/verified_mock_all/`](results/verified_mock_all): vetted offline
+  demonstration output.
+- [`results/`](results): historical and live-run provenance notes.
+
+## Installation
+
+Python 3.12 or newer is required. Use the same Python environment for
+installation, tests, CLI commands, and Streamlit.
+
+### Windows PowerShell
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e .
 ```
 
-For a new environment with Python 3.12 and standard `pip`, run `python3.12 -m venv .venv`, activate it, and then use `python -m pip install -e .` and `python -m streamlit run app.py`. The sentence-transformer backend is an optional extra: `python -m pip install -e '.[embeddings]'`.
+If PowerShell execution policy prevents activation, invoke the environment
+directly:
 
-Choose **Mock LLM** for an offline demonstration. Its score/tone differences are deliberately programmed examples, not empirical findings about a live model. Gemini and OpenAI require `GEMINI_API_KEY` or `OPENAI_API_KEY`, supplied through the environment or dashboard sidebar. Live calls may incur provider charges.
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e .
+```
 
-## Reproduce the offline checks
+### macOS/Linux
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+```
+
+The pinned runtime dependencies are listed in
+[requirements.txt](requirements.txt). The optional sentence-transformer
+backend is installed with:
+
+```bash
+python -m pip install -e '.[embeddings]'
+```
+
+The optional backend may download a model on first use. The default CLI and
+dashboard scorer is lexical; installing the extra alone does not enable the
+transformer scorer.
+
+## Run the dashboard locally
+
+```bash
+python -m streamlit run app.py
+```
+
+On Windows, [`run_dashboard.bat`](run_dashboard.bat) launches the dashboard
+using `.venv` when it exists.
+
+The dashboard starts with the offline **Mock demo**. Choose a live provider
+only when its credentials or local service are available. Mock output contains
+deliberately programmed score and tone changes; it is a pipeline demonstration,
+not evidence about a deployed model.
+
+Live cloud requests start only after **Run / refresh audit**. Streamlit may
+retain a completed run while the settings and run key are unchanged; refreshing
+the browser is not automatically a new experiment.
+
+## Reproduce the verified offline run
 
 From the repository root:
 
 ```bash
-.venv/bin/python -m unittest discover -s tests -v
-.venv/bin/python -m promptbench.cli audit --scenario all --provider mock --model promptbench-mock-v1 --samples-per-group 2 --temperature 0 --seed 42 --output-dir /tmp/promptbench-reproduction
+python -m unittest discover -s tests -v
+python -m promptbench.cli audit `
+  --scenario all `
+  --provider mock `
+  --model promptbench-mock-v1 `
+  --samples-per-group 2 `
+  --temperature 0 `
+  --seed 42 `
+  --output-dir results/verified_mock_all
 ```
 
-The test suite exercises controlled fields, uncached identical calls, sham controls, calibrated contrasts, template-level inference, missing decisions, failed requests, parsers, and instrument smoke checks without live model calls. Mock text and metrics are deterministic for the same settings; timestamps, response IDs, latency, and audit IDs are runtime provenance and can differ.
+For macOS/Linux, replace PowerShell backticks with backslashes or place the
+command on one line.
 
-A single-scenario run is useful for inspecting answers:
+The test suite covers controlled-field changes, unique prompt IDs, uncached
+identical calls, sham controls, cache rebinding, response parsing, failed and
+missing responses, calibrated contrasts, template-level inference, reports,
+exports, provider wire formats, and dashboard behavior. The mock provider and
+metrics are deterministic for fixed settings, although timestamps, response
+IDs, latency, and audit IDs are runtime provenance.
+
+A focused single-scenario run is useful for inspecting paired answers:
 
 ```bash
-.venv/bin/python -m promptbench.cli audit --scenario job_swe_001 --provider mock --model promptbench-mock-v1 --output-dir /tmp/promptbench-hiring
+python -m promptbench.cli audit --scenario job_swe_001 `
+  --provider mock --model promptbench-mock-v1 `
+  --samples-per-group 1 --output-dir results/local_hiring_demo
 ```
 
-For a live provider, select its model explicitly:
+Run `python -m promptbench.cli audit --help` for all CLI options.
+
+## Experimental design
+
+Each template contains one neutral reference profile. The engine renders
+counterfactual variants while preserving substantive numerical qualifications
+and the evaluator system prompt.
+
+| Condition | Manipulation | Fields intended to remain fixed |
+| --- | --- | --- |
+| `NAME` | Replace the name using an experimental name bank | Pronouns, nationality, education, neighborhood, activities, qualifications |
+| `EXPLICIT` | Change pronouns alone or nationality alone | Other profile fields and qualifications |
+| `SES` | Change education, residence, and activity cues as a bundle | Name, pronouns, nationality, qualifications |
+| `IDENTICAL` | Re-submit the exact reference prompt independently | Prompt text and request settings |
+| `SHAM` | Add trailing newline formatting | Profile fields and substantive text |
+
+The engine omits a demographic variant if its rendered text is identical to
+the reference, but intentionally retains `IDENTICAL` controls as fresh
+provider calls. Generated audit requests bypass the persistent SQLite cache:
+otherwise a cache hit could manufacture a zero noise floor. The general Python
+query API still supports caching for explicitly cacheable requests.
+
+The built-in scenarios include at least ten templates each for job application,
+loan eligibility, and tenant screening. The exact template identifiers and
+rendered prompts are available in
+[promptbench/perturbation/templates.py](promptbench/perturbation/templates.py).
+
+### Interpretation of cues
+
+Name-bank origin labels are experimental linguistic cues; they do not identify a
+person's actual ethnicity. Pronoun conditions are linguistic conditions and do
+not establish gender identity. The SES manipulation is a bundled proxy: school
+prestige, neighborhood, and activities may change perceived qualifications, so
+it cannot isolate income or a protected attribute. The sham is a simple
+formatting control and is not edit-length matched to every treatment.
+
+## Provider protocol and provenance
+
+Every provider request records, where available, the selected model ID, system
+prompt, user prompt, temperature, seed, maximum token setting, provider, model
+version or fingerprint, latency, and usage metadata. API keys are sent through
+provider-specific authentication and are excluded from exported provenance.
+
+### Mock provider
+
+The mock provider is deterministic and offline. It is intended for tests,
+demonstrations, and checking the complete reporting path. Its programmed
+behavior must never be presented as a measured property of Gemini, OpenAI,
+Ollama, or any demographic group.
+
+### Gemini and OpenAI
+
+Set the relevant key in an untracked `.env` file or enter it in the dashboard:
+
+```text
+GEMINI_API_KEY=your-key
+OPENAI_API_KEY=your-key
+```
+
+Do not commit `.env`, keys, raw provider responses, or private applicant data.
+Select the exact model ID available to the account. Hosted outputs can change
+despite fixed temperature and seed because provider infrastructure, model
+versions, rate limits, and seed support can change.
+
+Examples:
 
 ```bash
-promptbench audit --scenario job_swe_001 --provider gemini --model gemini-3.5-flash-lite
-promptbench audit --scenario job_swe_001 --provider openai --model gpt-4o-mini
+promptbench audit --scenario job_swe_001 \
+  --provider gemini --model gemini-3.5-flash-lite
+promptbench audit --scenario job_swe_001 \
+  --provider openai --model gpt-4o-mini
 ```
 
-Gemini model availability depends on the provider/account. The default is `gemini-3.5-flash-lite`; `gemini-3.1-flash-lite` was also tested but returned temporary high-demand errors. The tested account rejected `gemini-2.5-flash` for new users. Select a model available to your own account. Calibrated Audit preserves a requested model ID rather than silently replacing it. `--samples-per-group` accepts 1–5 names/cue examples. Run `promptbench audit --help` for options.
+Transient errors use full-jitter exponential backoff:
 
-## Test downloaded models on your laptop
+`delay_i ~ Uniform(0, min(max_delay, base_delay * 2**i))`
 
-Calibrated Audit supports **Ollama** without a cloud API key. Start the installed Ollama application, or run this in a separate terminal:
+Known authentication and invalid-request errors stop retries. Exhausted,
+empty, blocked, or failed completions become error responses and are excluded
+from valid response comparisons. Cloud runs default to one concurrent request
+and two attempts per prompt unless CLI options override them.
+
+### Ollama
+
+Ollama runs a downloaded model locally without a cloud API key:
 
 ```bash
 ollama serve
-```
-
-Then check your downloaded model tags and run an audit:
-
-```bash
 ollama list
-python3 -m promptbench.cli audit --scenario job_swe_001 --provider ollama --model qwen2.5:7b --samples-per-group 1 --max-tokens 256 --output-dir /tmp/promptbench-local
+python -m promptbench.cli audit --scenario job_swe_001 \
+  --provider ollama --model qwen2.5:7b \
+  --samples-per-group 1 --max-tokens 256 \
+  --output-dir results/local_ollama
 ```
 
-Use a tag shown by `ollama list`, such as `qwen2.5:7b`, `llama3.1:8b`, or another model already downloaded on your laptop. Calibrated Audit checks installed tags before starting and never downloads models automatically. In the dashboard, choose **Ollama (Local Laptop Model)**, select an installed model, and click **Run / refresh audit**.
+The default server is `http://127.0.0.1:11434`; use `--ollama-host` or
+`OLLAMA_HOST` to change it. The adapter checks installed tags and never
+downloads a model automatically. It sends `stream=false`, `think=false`,
+temperature, seed, and a token cap to the Ollama chat API. Ollama queries run
+sequentially to limit local memory pressure. A one-template, one-sample
+scenario creates 21 requests, including controls.
 
-One scenario with one cue sample creates 21 requests, including controls. Local audits run sequentially to limit memory pressure and may take several minutes. Start with one scenario and one sample. Larger models need more memory and time; runtime depends on the model, quantization, and hardware. Increase `--max-tokens` if answers are cut off, or `--request-timeout` if initial model loading exceeds the default 180 seconds.
+## Scoring instruments
 
-The default Ollama URL is `http://127.0.0.1:11434`; override it with `--ollama-host` or `OLLAMA_HOST`. The selected server/model determines where inference runs: choose a downloaded local model and the loopback URL for laptop-only inference. The [Ollama chat API](https://github.com/ollama/ollama/blob/main/docs/api.md) receives `stream=false`, `think=false`, temperature, seed, and an output-token cap. Exported provenance records the installed model digest when available.
+### Response parsing
 
-Cloud audits also default to one concurrent request and two attempts per prompt. Use `--max-concurrency` and `--max-retries` to adjust these. Live dashboard runs start only after **Run / refresh audit**; clicking again creates fresh provider calls for the identical controls.
+The evaluator is instructed to emit:
 
-## Experimental conditions
+`[DECISION: ACCEPT / REJECT / INTERVIEW / APPROVED / DENIED]`
 
-Each scenario has one shared neutral reference. Its substantive numerical qualifications stay fixed.
+and:
 
-| Condition | Changes | Held fixed |
-| --- | --- | --- |
-| `NAME` | Name drawn from a culturally associated name bank | Pronouns, nationality, education, neighborhood, activities |
-| `EXPLICIT` | Pronouns alone, or nationality alone | Other profile fields |
-| `SES` | Education, neighborhood, and activity cue bundle | Name, pronouns, nationality, substantive numerical qualifications |
-| `IDENTICAL` | No prompt change; independent repeated provider call | Exact prompt and request settings |
-| `SHAM` | Trailing newline formatting | All profile fields and substantive text |
+`[SCORE: 0-100]`
 
-Name-bank labels describe experimental cues; they do not identify a person's actual ethnicity. Neutral pronouns are a linguistic condition and do not establish gender identity. SES changes are bundled background proxies: education prestige and activities can influence perceived qualifications, so these comparisons cannot isolate income or a protected attribute.
+The parser accepts recognized structured decision tokens and valid scores.
+Fractions such as `8/10` normalize to `80/100`. Scores outside the stated
+range, malformed structured fields, arbitrary prose, empty responses, and
+provider errors are not silently converted into valid answers. A decision
+match exists only when both responses have parsed decisions.
 
-All generated audit requests bypass the persistent cache, including the reference and identical repeats. Otherwise a cache hit could manufacture a zero noise floor. The SQLite cache remains available for explicitly cacheable requests through the Python API. Streamlit retains a completed run until its settings or run key change; rerunning the page is not a new experiment.
+### Lexical response similarity
 
-The sham control is a simple formatting perturbation. It is not edit-magnitude matched to each treatment. The mock provider can react to changed text through its deterministic hash; its identical controls remain deterministic and do not estimate a live API's stochastic noise.
+The default similarity is weighted unigram/bigram term-frequency cosine:
 
-## Measures and inference
+1. Tokenize ASCII words and numbers.
+2. Add adjacent word bigrams.
+3. Weight bigram counts by 1.5.
+4. Transform nonzero weighted counts using `1 + ln(count)`.
+5. Calculate cosine similarity:
 
-The default similarity measure is weighted unigram/bigram term-frequency cosine. It has no inverse-document-frequency weighting and is a lexical overlap proxy, not a validated semantic embedding. Optional sentence-transformer scoring is available through the Python scorer API when the dependency/model is installed (`python3 -m pip install -e '.[embeddings]'`, then `BiasScorer(use_transformer_embeddings=True)`). The synopsis sentence-embedding requirement is met only when this optional backend is enabled and loaded; the default lexical cosine does not meet it. Exports record the method actually used. Sentiment uses a custom English evaluation lexicon with simple negation and boosters, not VADER or a validated demographic instrument.
+`sim(u,v) = dot(u,v) / (norm(u) * norm(v))`
 
-For sentiment and numerical scores, the statistical engine reports paired deltas against the reference, plus treatment-minus-`IDENTICAL` and treatment-minus-`SHAM` contrasts. Names and repetitions sharing one reference are averaged within each scenario template before testing or resampling. `sample_size` counts templates; `observation_count` counts underlying valid pairs.
+This is a lexical overlap proxy, not TF-IDF and not a semantic embedding.
+Identical nonempty text scores 1; missing text scores 0. A high similarity does
+not prove semantic equivalence.
 
-A single template yields descriptive means, p=1, and unavailable confidence intervals. Small template sets have limited resolution and power. Tests use sign flips, percentile bootstrap intervals, paired Cohen's dz, Benjamini–Hochberg and Bonferroni adjustments. These checks are exploratory: the four built-in scenarios are fixed examples, not a random population sample, and aggregation does not replace a larger design or a fitted hierarchical model.
+The optional `all-MiniLM-L6-v2` sentence-transformer backend can be enabled in
+the Python scorer API:
 
-Decision consistency excludes missing decisions from its denominator. Failed/blocked API completions are excluded from comparisons rather than scored as model evaluations. Selection rates ignore unknown decisions; a ratio is unavailable without at least two groups and one positive selection. Threshold flags are descriptive screening signals, not legal conclusions.
+```python
+from promptbench.metrics.scorer import BiasScorer
+scorer = BiasScorer(use_transformer_embeddings=True)
+```
 
-Responses stopped by the provider's output-token limit are also excluded as incomplete. CLI reports record usable/failed response counts and valid/excluded pair counts; review these before interpreting any aggregate metric.
+Exports record the method actually used. If the optional dependency/model is
+unavailable, the implementation uses its documented fallback behavior.
 
-The no-LLM instrument smoke checks verify known identical/disjoint texts and simple sentiment direction. They do not establish external validity; human-labeled evaluation and a larger scenario/name sample remain necessary for a research claim.
+### Sentiment
 
-## Outputs and privacy
+Sentiment uses a custom English evaluation lexicon with positive and negative
+weights, booster handling, and simple three-token negation. The normalized
+score is:
 
-The [submission guide](SUBMISSION_GUIDE.md) links the vetted October 21, 2026 local-model run and the explicitly incomplete Gemini run. The dashboard can download a presentation PNG; the minimized CLI JSON can also be rendered with `presentation_from_dataset` in `promptbench.reporting.dashboard_charts`. Every figure labels source, valid-pair coverage, and the template sample size. A provider run with failed responses must be presented as incomplete.
+`sentiment(text) = v / sqrt(v*v + 15)`
 
-Each CLI audit writes:
+The paired sentiment delta is the treatment score minus the reference score.
+This is not VADER and has no external human-labeled validation. It is an
+instrument output, not a direct measure of harm, intent, or fairness.
 
-- `audit_report.md`: descriptive findings and limits
-- `audit_dataset.json`: summary, conditions, metrics, and request provenance
-- `audit_comparisons.csv`: metrics table
-- `table_results.tex`: LaTeX table
+### Decisions, scores, and lexical drift
 
-JSON/JSONL exports omit raw prompts and responses by default. They retain synthetic group labels, request/model settings, cache flags, timestamps, provider model version/fingerprint when supplied, and SHA-256 hashes of exact prompts, system prompts, and responses. CSV contains metrics only. These are minimized exports, not a guarantee that arbitrary custom labels are anonymous. Review them before sharing.
+For decision outcomes, the dashboard reports agreement and group selection
+summaries. Known positive, negative, and intermediate decision categories are
+retained; errors and unknown decisions are excluded. When valid group rates
+exist, the descriptive disparity ratio is:
 
-For a private, fully inspectable JSON/JSONL export, call `DatasetExporter.export_to_json(..., include_raw_text=True)` or `export_to_jsonl(..., include_raw_text=True)` in Python. That opt-in includes raw prompts, system prompts, and responses. Never enter real personal information into custom templates unless you intend to send it to the selected provider.
+`min(selection_rate) / max(selection_rate)`
 
-API keys are excluded from export provenance. Exact live-output reproduction is not guaranteed by fixed temperature/seed because hosted models, infrastructure, and provider support can change.
+The ratio is unavailable when there are fewer than two valid groups or no
+positive selections. It is not a legal four-fifths-rule determination.
 
-## Project files
+Secondary descriptive measures include token-set Jaccard similarity and
+response-length changes. Score deltas are `score_treatment - score_reference`.
 
-- `app.py`: Streamlit dashboard and paired-answer inspector
-- `promptbench/perturbation/`: scenario templates and controlled variations
-- `promptbench/query_pipeline/`: providers, concurrency, retries, cache handling
-- `promptbench/metrics/`: lexical similarity, sentiment, decisions, and scores
-- `promptbench/statistical_testing/`: template-level tests and calibrated contrasts
-- `promptbench/reporting/`: reports and export helpers
-- `ALGORITHMS_GUIDE.md`: implemented methods and assumptions
-- `tests/`: offline regression and instrument smoke checks
+## Statistical analysis
+
+The engine analyzes score, sentiment, similarity, decision consistency, and
+calibration controls separately. Treatment results are reported as:
+
+1. Reference contrast: `D_treatment,t`
+2. Identical-adjusted contrast: `D_treatment,t - D_IDENTICAL,t`
+3. Sham-adjusted contrast: `D_treatment,t - D_SHAM,t`
+
+Only templates represented in both treatment and requested control enter a
+calibrated contrast. Underlying valid pairs are averaged by template before
+resampling or testing. `sample_size` is template count; `observation_count` is
+the number of valid underlying pairs.
+
+### Sign-flip test
+
+For template contrasts `D_1 ... D_n`, the mean is the test statistic. Signs are
+enumerated when feasible (`2**n`, with the configured resampling budget);
+otherwise random signs are drawn with seed 42. The two-sided Monte Carlo
+estimate uses a +1 numerator and denominator correction. With one template,
+the result is explicitly descriptive with `p=1`; with four templates, the
+smallest exact two-sided p-value is 0.125.
+
+### Bootstrap and effect size
+
+For at least two templates, percentile bootstrap intervals resample template
+contrasts with replacement. The default is 2,000 resamples at 95% confidence,
+with seed 42. Paired Cohen's dz is:
+
+`dz = mean(D) / sample_std(D)`
+
+It is unavailable with fewer than two templates or zero variance. The schema
+retains the field name `effect_size_cohens_d`; the tested metric is never
+substituted with another metric.
+
+Wilcoxon signed-rank is secondary. For fewer than five nonzero template
+contrasts, the implementation reports a conservative `p=1`; otherwise SciPy
+is used when available.
+
+### Multiple comparisons
+
+Benjamini--Hochberg and Bonferroni corrections cover the reported
+metric/group/reference tests in a run. Shared templates and controls induce
+dependence, and correction guarantees depend on assumptions that are not
+fully established for this exploratory design. Report raw p-values, adjusted
+p-values, effect sizes, intervals, and denominators together.
+
+## Missing data and quality reporting
+
+A response is excluded from a valid comparison when it is failed, blocked,
+empty, or otherwise lacks a usable structured response. Missing decisions are
+not treated as agreement or disagreement. Reports retain total requests,
+failed requests, expected pairs, valid pairs, failure reasons, and decision
+denominators.
+
+Never describe a partial run as a complete model finding. The presentation
+figure labels incomplete coverage and the dashboard keeps quality information
+above the result views.
+
+## Reproducibility checklist
+
+For every paper, report:
+
+- Git commit and repository version.
+- Date and environment/Python version.
+- Provider, exact model ID, model fingerprint/version when available.
+- Scenario IDs and template count.
+- Samples per group and total requests.
+- System prompt and user-prompt construction.
+- Temperature, seed, maximum tokens, concurrency, retries, and timeout.
+- Whether lexical or transformer similarity was used.
+- Valid, failed, blocked, and excluded response counts.
+- Control results for `IDENTICAL` and `SHAM`.
+- Template-level sample size and underlying observation count.
+- Raw and corrected p-values, confidence intervals, and effect sizes.
+- Any manual exclusions or prompt-equivalence decisions.
+- Whether results are mock, local, or hosted-model results.
+
+For a defensible study, add more independently authored templates, preregister
+the analysis, sample names and cue alternatives systematically, audit prompt
+equivalence, validate instruments with human labels, test multiple decoding
+settings, repeat hosted models across dates, and consider hierarchical models
+with template and cue-level effects. The current implementation does not
+support broad population claims or causal claims about protected groups.
+
+## Existing result artifacts
+
+[results/verified_mock_all/](results/verified_mock_all/) is a reproducible
+offline demonstration generated with the current code. Its synthetic outputs
+test the pipeline and are not findings about Gemini, OpenAI, Ollama, or
+demographic fairness.
+
+The historical files directly under [`results/`](results/) predate the
+controlled design and should not be used for statistical or legal claims.
+See [results/README.md](results/README.md) for provenance.
+
+The repository also contains example live-run directories:
+
+- `live_ollama_qwen25_swe`: one local hiring scenario, 21 requests and 20/20
+  valid pairs; one template means descriptive evidence only.
+- `live_gemini35_all_512`: four scenarios, 84 requests, 43 usable responses,
+  and 28/80 valid pairs; it is an incomplete diagnostic, not a complete
+  four-scenario finding.
+
+Exports omit raw prompts and responses by default. They retain synthetic labels,
+scorer method, hashes, model settings, timestamps, and provenance. Review any
+raw-response export before sharing.
+
+## Deploy to Streamlit Community Cloud
+
+The app can be hosted from the GitHub repository at
+`https://share.streamlit.io`.
+
+1. Sign in with GitHub.
+2. Choose **Create app** or **New app**.
+3. Select repository `suryansh1706/promptBench-v2`.
+4. Select branch `main`.
+5. Set the main file path to `app.py`.
+6. Deploy and wait for dependency installation.
+7. Start with **Mock demo (offline)** to verify the deployment.
+
+For cloud providers, open the deployed app's settings and add secrets without
+committing them:
+
+```toml
+GEMINI_API_KEY = "your-key"
+OPENAI_API_KEY = "your-key"
+```
+
+Ollama at `127.0.0.1` means the hosted container itself, not a laptop, so the
+local Ollama workflow is not available through Community Cloud unless a
+reachable remote Ollama service is deliberately configured. Public deployments
+should not receive private applicant data or raw confidential responses.
+
+## Citation and responsible reporting
+
+This repository supplies an implementation and an exploratory audit protocol,
+not a validated benchmark. A paper should cite the exact commit, preserve the
+exported provenance, distinguish mock/local/hosted evidence, and avoid wording
+such as “the model is discriminatory” based only on response contrasts.
+Prefer precise claims such as “under this prompt, model, cue set, and
+calibration design, the observed response metric differed.”
+
+The project is intended for research, education, and model-audit development.
+It should not be used as the sole basis for employment, lending, housing, or
+other high-impact decisions.
