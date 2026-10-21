@@ -4,6 +4,11 @@ echo ========================================================
 echo Launching Calibrated Audit Demographic Bias Web Dashboard...
 echo ========================================================
 echo.
-"C:\Users\Hp\.python311\python.exe" -m streamlit run app.py
+cd /d "%~dp0"
+if exist ".venv\Scripts\python.exe" (
+    ".venv\Scripts\python.exe" -m streamlit run app.py
+) else (
+    python -m streamlit run app.py
+)
 pause
 

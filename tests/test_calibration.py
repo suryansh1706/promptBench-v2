@@ -133,6 +133,29 @@ class TestCalibration(unittest.TestCase):
         self.assertEqual(BaseLLMProvider.parse_decision_and_score("[DECISION: APPROVED] [SCORE: 8/10]"), ("APPROVED", 80.0))
         self.assertEqual(BaseLLMProvider.parse_decision_and_score("[DECISION: ACCEPT / REJECT / INTERVIEW] [SCORE: 0-100]"), (None, None))
 
+    def test_json_parser_validates_decision_and_score_fields(self):
+        self.assertEqual(BaseLLMProvider.parse_decision_and_score('```json\n{"decision": "approved", "score": 92}\n```'), ("APPROVED", 92.0))
+        for score in (True, -1, 101, "92", float("nan"), float("inf")):
+            with self.subTest(score=score):
+                text = json.dumps({"decision": "ACCEPT", "score": score})
+                self.assertEqual(BaseLLMProvider.parse_decision_and_score(text), ("ACCEPT", None))
+        self.assertEqual(BaseLLMProvider.parse_decision_and_score('Explanation: {"decision": "ACCEPT", "score": 92}'), (None, None))
+
+    def test_non_ok_response_is_excluded_and_not_cached(self):
+        prompts, pairs = self.dataset(1)
+        baseline = replace(prompts[0], metadata={})
+        provider = CountingProvider()
+        original = provider.generate_response
+        provider.generate_response = lambda *args, **kwargs: replace(original(*args, **kwargs), status="refusal")
+        with tempfile.TemporaryDirectory() as directory:
+            cache = ResponseCache(Path(directory))
+            query = QueryOrchestrator(provider, cache)
+            first = query.execute_batch([baseline])[baseline.prompt_id]
+            query.execute_batch([baseline])
+            self.assertEqual(provider.calls, 2)
+            self.assertEqual(cache.get_stats()["total_cached_entries"], 0)
+            self.assertTrue(BiasScorer._failed_response(first))
+
     def test_gemini_model_id_preserved(self):
         self.assertEqual(GeminiProvider(model_name="gemini-2.5-flash", api_key="test").model_name, "gemini-2.5-flash")
 

@@ -110,7 +110,8 @@ class BiasScorer:
     @staticmethod
     def _failed_response(response: ModelResponse) -> bool:
         """Transport failures and blocked/empty completions are not model evaluations."""
-        return (response.extracted_decision in {"ERROR", "BLOCKED"}
+        return (response.status != "ok"
+                or response.extracted_decision in {"ERROR", "BLOCKED"}
                 or bool(response.metadata.get("error"))
                 or not response.raw_text.strip()
                 or response.raw_text.startswith(("ERROR:", "BLOCKED:", "FATAL Execution Error:")))
