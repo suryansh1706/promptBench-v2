@@ -254,7 +254,7 @@ if provider_choice != "mock":
         st.session_state["active_audit"] = signature
         st.session_state["audit_run_id"] = time.time_ns()
     if st.session_state.get("active_audit") != signature:
-        st.info("Your setup is ready. Select **Run audit** in the sidebar to send the prompts to the model.")
+        st.info("Your setup is ready. Select **Run / refresh audit** in the sidebar to send the prompts to the model.")
         st.stop()
     run_id = st.session_state["audit_run_id"]
 
@@ -285,7 +285,7 @@ st.caption(f"{source} | {model_choice} | English, single-turn, synthetic applica
 if provider_choice == "mock":
     st.info("Demonstration data: the mock model has programmed score and tone changes. These results explain the audit workflow and are not findings about a deployed AI.")
 if template_count < 2:
-    st.caption("One scenario template (n = 1): results are descriptive; uncertainty cannot be estimated from this run.")
+    st.info("One scenario template (n = 1): results are descriptive; uncertainty cannot be estimated from this run.")
 else:
     st.caption(f"Inference uses {template_count} fixed scenario templates, not the number of paired answers. Results remain exploratory.")
 if quality.get("failed_requests"):
