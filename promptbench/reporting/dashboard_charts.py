@@ -123,7 +123,7 @@ def presentation_figure(comparisons, model, provider, quality):
     parsed = treatments["Decision match"].dropna()
     templates = frame["Template"].nunique()
     fig = plt.figure(figsize=(15, 8.5), facecolor="white")
-    fig.text(.055, .94, "PROMPTBENCH  /  RESPONSE AUDIT", fontsize=12, color=TEAL, weight="bold")
+    fig.text(.055, .94, "CALIBRATED AUDIT  /  RESPONSE AUDIT", fontsize=12, color=TEAL, weight="bold")
     fig.text(.055, .885, "How much did the model's response change?", fontsize=24, color=INK, weight="bold")
     source = "PROGRAMMED MOCK DEMO" if provider == "mock" else "LOCAL MODEL RUN" if provider == "ollama" else "LIVE API RUN"
     fig.text(.055, .84, f"{source}  ·  {model}  ·  {templates} template(s) with valid pairs", fontsize=12, color=MUTED)

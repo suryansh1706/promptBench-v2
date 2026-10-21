@@ -42,56 +42,41 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS for Sleek Modern Styling
+# Light, restrained dashboard styling. Streamlit widgets retain native behavior.
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 2.2rem;
-        font-weight: 800;
-        color: #172B4D;
-        letter-spacing: -0.04em;
-        margin-bottom: 0.2rem;
+    :root {
+        --ca-ink: #172235;
+        --ca-muted: #667085;
+        --ca-line: #e5e9f0;
+        --ca-surface: #ffffff;
+        --ca-canvas: #f7f9fc;
+        --ca-accent: #315efb;
     }
-    .sub-header {
-        font-size: 1.05rem;
-        color: #4B5563;
-        margin-bottom: 1.5rem;
-    }
-    .metric-card {
-        background-color: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        border-radius: 10px;
-        padding: 1.2rem;
-        text-align: center;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    .metric-value {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #1E293B;
-    }
-    .metric-label {
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: #64748B;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    .badge-sig {
-        background-color: #FEE2E2;
-        color: #991B1B;
-        padding: 3px 8px;
-        border-radius: 6px;
-        font-weight: 600;
-        font-size: 0.8rem;
-    }
-    .badge-ok {
-        background-color: #DCFCE7;
-        color: #166534;
-        padding: 3px 8px;
-        border-radius: 6px;
-        font-weight: 600;
-        font-size: 0.8rem;
+    html, body, [data-testid="stAppViewContainer"] { background: var(--ca-canvas); color: var(--ca-ink); }
+    [data-testid="stHeader"] { background: rgba(247, 249, 252, .92); }
+    [data-testid="stMainBlockContainer"] { max-width: 1440px; padding-top: 2rem; padding-bottom: 3rem; }
+    [data-testid="stSidebar"] { background: var(--ca-surface); border-right: 1px solid var(--ca-line); }
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p, [data-testid="stCaptionContainer"] { color: var(--ca-muted); }
+    h1, h2, h3, h4, p, label { color: var(--ca-ink); }
+    h1 { letter-spacing: -.035em; font-weight: 680; }
+    h2, h3 { letter-spacing: -.02em; font-weight: 620; }
+    [data-testid="stMetric"] { min-height: 112px; padding: 1rem 1.1rem; background: var(--ca-surface); border: 1px solid var(--ca-line); border-radius: 12px; box-shadow: 0 1px 2px rgba(16, 24, 40, .025); }
+    [data-testid="stMetricLabel"] p { color: var(--ca-muted); font-size: .82rem; font-weight: 550; }
+    [data-testid="stMetricValue"] { color: var(--ca-ink); font-weight: 680; }
+    [data-testid="stTabs"] [data-baseweb="tab-list"] { gap: 1.25rem; border-bottom: 1px solid var(--ca-line); }
+    [data-testid="stTabs"] button[role="tab"] { color: var(--ca-muted); font-weight: 550; padding: .8rem .15rem; }
+    [data-testid="stTabs"] button[role="tab"][aria-selected="true"] { color: var(--ca-accent); border-bottom-color: var(--ca-accent); }
+    [data-testid="stVerticalBlockBorderWrapper"] { background: var(--ca-surface); border-color: var(--ca-line); border-radius: 12px; }
+    [data-testid="stAlert"] { border-radius: 10px; }
+    .stButton button, .stDownloadButton button { border-radius: 8px; font-weight: 560; transition: border-color .15s ease, background .15s ease; }
+    .stButton button[kind="primary"] { background: var(--ca-accent); border-color: var(--ca-accent); }
+    [data-testid="stDataFrame"] { border: 1px solid var(--ca-line); border-radius: 10px; }
+    hr { border-color: var(--ca-line); }
+    @media (max-width: 720px) {
+        [data-testid="stMainBlockContainer"] { padding: 1.25rem 1rem 2rem; }
+        [data-testid="stTabs"] [data-baseweb="tab-list"] { gap: .45rem; }
+        [data-testid="stTabs"] button[role="tab"] { font-size: .82rem; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -154,23 +139,23 @@ def run_cached_audit(scenario_id: str, provider_name: str, model_name: str, samp
 
 
 # Sidebar Controls
-st.sidebar.title("⚖️ Audit Parameters")
-st.sidebar.caption("MAIT CSE Minor Project (2023-2027)")
+st.sidebar.title("Audit setup")
+st.sidebar.caption("Configure the scenario and model for this run.")
 
 selected_scenario = st.sidebar.selectbox(
-    "Decision Scenario Domain",
+    "Scenario",
     options=[t.template_id for t in SCENARIO_TEMPLATES] + ["all"],
     format_func=lambda x: "All four scenario templates" if x == "all" else f"{get_template_by_id(x).title} ({get_template_by_id(x).scenario_category})",
 )
 
 provider_choice = st.sidebar.selectbox(
-    "LLM Provider Engine",
+    "Provider",
     options=["mock", "gemini", "openai", "ollama"],
     format_func=lambda x: {
-        "gemini": "Google Gemini API",
-        "mock": "Mock LLM (Deterministic Offline Demo)",
-        "openai": "OpenAI API (Paid Tier)",
-        "ollama": "Ollama (Local Laptop Model)",
+        "gemini": "Google Gemini",
+        "mock": "Mock demo (offline)",
+        "openai": "OpenAI",
+        "ollama": "Ollama (local)",
     }[x],
     index=0,
 )
@@ -193,9 +178,9 @@ if provider_choice == "gemini":
     )
     if api_key_input:
         os.environ["GEMINI_API_KEY"] = api_key_input
-        st.sidebar.success("✓ Gemini API Key configured")
+        st.sidebar.success("API key configured")
     else:
-        st.sidebar.info("A Gemini API key is required for live audits. Check current pricing and limits before running a large audit.")
+        st.sidebar.info("Enter a Gemini API key to run a live audit.")
 elif provider_choice == "openai":
     model_choice = st.sidebar.selectbox("OpenAI Model", ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"])
     api_key_input = st.sidebar.text_input(
@@ -206,7 +191,7 @@ elif provider_choice == "openai":
     )
     if api_key_input:
         os.environ["OPENAI_API_KEY"] = api_key_input
-        st.sidebar.success("✓ OpenAI API Key configured")
+        st.sidebar.success("API key configured")
 
 elif provider_choice == "ollama":
     ollama_host = st.sidebar.text_input("Ollama Server URL", value=ollama_host)
@@ -224,23 +209,19 @@ elif provider_choice == "ollama":
     model_choice = st.sidebar.selectbox("Installed Local Model", tags, index=tags.index(preferred))
     st.sidebar.caption("Uses the selected Ollama server without an API key. Local audits run one request at a time and can take several minutes.")
 
-samples_count = st.sidebar.slider("Names per Culture/Gender Group", min_value=1, max_value=3, value=1 if provider_choice == "ollama" else 2)
+samples_count = st.sidebar.slider("Examples per group", min_value=1, max_value=3, value=1 if provider_choice == "ollama" else 2)
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("**Project Authors:**")
-st.sidebar.markdown("• Parth Mudgal (00196402723)\n• Suryansh Rastogi (02696402723)\n• Siddharth Sharma (01596402723)")
-st.sidebar.markdown("**Project Guide:** Ms. Kajol Dahiya")
+st.sidebar.caption("Calibrated Audit | exploratory research prototype")
+
 
 # Main Header
-st.markdown("<div class='main-header'>Calibrated Audit · Response Audit</div>", unsafe_allow_html=True)
-st.markdown(
-    "<div class='sub-header'>Compare matched applicant evaluations, inspect the controls, and explain what the evidence supports.</div>",
-    unsafe_allow_html=True,
-)
+st.title("Calibrated Audit")
+st.caption("Compare matched responses, inspect calibration controls, and review what the evidence supports.")
 
 # Validate API Key presence
 if provider_choice == "gemini" and not os.environ.get("GEMINI_API_KEY"):
-    st.warning("⚠️ **Google Gemini API Key is required to run live audits.**")
+    st.warning("A Google Gemini API key is required to run a live audit.")
     st.info(
         "To configure Gemini access:\n"
         "1. Open [Google AI Studio (API Keys)](https://aistudio.google.com/app/apikey).\n"
@@ -250,7 +231,7 @@ if provider_choice == "gemini" and not os.environ.get("GEMINI_API_KEY"):
     )
     st.stop()
 elif provider_choice == "openai" and not os.environ.get("OPENAI_API_KEY"):
-    st.warning("⚠️ **OpenAI API Key is required.** Please enter your `sk-...` key in the sidebar, or switch to **Mock LLM**.")
+    st.warning("An OpenAI API key is required. Enter it in the sidebar or select the offline mock demo.")
     st.stop()
 
 # Live runs start explicitly, and each press gets a fresh run identity so
@@ -266,7 +247,7 @@ if provider_choice != "mock":
         st.stop()
     run_id = st.session_state["audit_run_id"]
 
-with st.spinner(f"Executing Calibrated Audit 5-Stage Audit Pipeline using {provider_choice.upper()} ({model_choice})..."):
+with st.spinner(f"Running audit with {provider_choice.upper()} ({model_choice})..."):
     try:
         all_prompts, comparisons, hyp_results, fairness = run_cached_audit(
             selected_scenario, provider_choice, model_choice, samples_count, ollama_host, run_id
@@ -289,11 +270,11 @@ template_count = len({p.template_id for p in all_prompts})
 quality = fairness.get("run_quality", {})
 frame = comparison_frame(comparisons)
 source = "Programmed mock demonstration" if provider_choice == "mock" else "Local Ollama model" if provider_choice == "ollama" else "Live cloud model"
-st.caption(f"{source.upper()}  /  {model_choice}  /  English · single-turn · synthetic applicants")
+st.caption(f"{source} | {model_choice} | English, single-turn, synthetic applicants")
 if provider_choice == "mock":
     st.info("Demonstration data: the mock model has programmed score and tone changes. These results explain the audit workflow and are not findings about a deployed AI.")
 if template_count < 2:
-    st.info("One scenario template (n = 1). Results are descriptive; confidence intervals and significance cannot be estimated from this run. More names do not increase the number of templates.")
+    st.caption("One scenario template (n = 1): results are descriptive; uncertainty cannot be estimated from this run.")
 else:
     st.caption(f"Inference uses {template_count} fixed scenario templates, not the number of paired answers. Results remain exploratory.")
 if quality.get("failed_requests"):
@@ -307,15 +288,15 @@ columns[1].metric("Scenario templates", template_count, help="The statistical sa
 columns[2].metric("Decision agreement", f"{decision_match_rate:.1%}" if decision_match_rate is not None else "Unavailable", help=f"Based on {len(decided_pairs)} treatment pairs with two parsed decisions.")
 score_pairs = [c for c in demographic_comparisons if c.score_delta is not None]
 largest_score = max(score_pairs, key=lambda c: abs(c.score_delta)) if score_pairs else None
-columns[3].metric("Largest score change", f"{largest_score.score_delta:+.1f} points" if largest_score else "Unavailable", help="Largest absolute paired change among valid parsed scores, on a 0–100 scale.")
-st.caption(f"{len(control_comparisons)} control pairs · {len(decided_pairs)}/{len(demographic_comparisons)} treatment pairs have parsed decisions · similarity uses lexical cosine by default")
+columns[3].metric("Largest score change", f"{largest_score.score_delta:+.1f} points" if largest_score else "Unavailable", help="Largest absolute paired change on a 0-100 scale.")
+st.caption(f"{len(control_comparisons)} control pairs | {len(decided_pairs)}/{len(demographic_comparisons)} treatment pairs have parsed decisions | similarity uses lexical cosine by default")
 
 summary_png = figure_png(presentation_figure(comparisons, model_choice, provider_choice, quality))
 st.download_button("Download presentation summary (.png)", data=summary_png, file_name=f"promptbench_{provider_choice}_{selected_scenario}_summary.png", mime="image/png")
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "01  Results overview", "02  Calibration & uncertainty", "03  Paired answers",
-    "04  Custom audit", "05  Tables & data",
+    "Overview", "Calibration", "Pair review",
+    "Custom audit", "Export",
 ])
 
 with tab1:
@@ -377,8 +358,8 @@ with tab2:
 
 # TAB 3: SIDE-BY-SIDE PROMPT & RESPONSE INSPECTOR
 with tab3:
-    st.subheader("Side-by-Side Counterfactual Prompt & Response Comparator")
-    st.caption("Inspect exact slot substitutions and token-level model output differences.")
+    st.subheader("Review a response pair")
+    st.caption("Compare the baseline and variant prompts, responses, and extracted metrics.")
 
     if comparisons:
         pair_options = [
@@ -390,13 +371,13 @@ with tab3:
 
         col_p1, col_p2 = st.columns(2)
         with col_p1:
-            st.markdown(f"#### 🏛️ Baseline Prompt ({pair.baseline_group})")
+            st.markdown(f"#### Baseline prompt ({pair.baseline_group})")
             st.text_area("Baseline Input Text", pair.base_prompt.rendered_prompt, height=220, disabled=True)
             st.markdown(f"**Baseline Decision:** `{pair.decision_base}` | **Score:** `{pair.score_base}` | **Sentiment:** `{pair.sentiment_base:+.3f}`")
             st.text_area("Baseline Model Response", pair.base_response.raw_text, height=180, disabled=True)
 
         with col_p2:
-            st.markdown(f"#### 🎭 Perturbed Variant ({pair.demographic_group})")
+            st.markdown(f"#### Variant prompt ({pair.demographic_group})")
             st.text_area("Perturbed Input Text", pair.perturbed_prompt.rendered_prompt, height=220, disabled=True)
             st.markdown(f"**Variant Decision:** `{pair.decision_perturbed}` | **Score:** `{pair.score_perturbed}` | **Sentiment:** `{pair.sentiment_perturbed:+.3f}`")
             st.text_area("Variant Model Response", pair.perturbed_response.raw_text, height=180, disabled=True)
@@ -406,8 +387,8 @@ with tab3:
 
 # TAB 4: LIVE INTERACTIVE AUDIT STUDIO
 with tab4:
-    st.subheader("🧪 Live Interactive Audit Studio")
-    st.markdown("Construct a custom prompt template with slots (`{name}`, `{education}`, `{neighborhood}`, `{nationality}`, `{pronoun_subject}`) and audit bias live.")
+    st.subheader("Custom audit")
+    st.caption("Create a prompt with supported profile slots, then compare matched variants.")
 
     custom_template = st.text_area(
         "Custom Scenario Template (Use curly braces for demographic slots)",
@@ -420,7 +401,7 @@ with tab4:
     )
 
     col_btn, _ = st.columns([1, 4])
-    if col_btn.button("🚀 Run Live Audit on Custom Template", type="primary"):
+    if col_btn.button("Run custom audit", type="primary"):
         from promptbench.perturbation.templates import BasePromptTemplate
         custom_tmpl = BasePromptTemplate(
             template_id="custom_user_01",
@@ -458,7 +439,7 @@ with tab4:
 
 # TAB 5: ACADEMIC LATEX & DATASET EXPORT
 with tab5:
-    st.subheader("📑 Academic Artifacts & Benchmark Dataset Exporters")
+    st.subheader("Export audit data")
     st.markdown("Download LaTeX tables and JSON/CSV audit datasets. Inspect exported prompts and responses before sharing them.")
 
     col_e1, col_e2 = st.columns(2)
@@ -467,14 +448,14 @@ with tab5:
         latex_str = ReportGenerator.generate_latex_table(hyp_results)
         st.code(latex_str, language="latex")
         st.download_button(
-            "⬇️ Download table_results.tex",
+            "Download LaTeX table",
             data=latex_str,
             file_name="promptbench_table_results.tex",
             mime="text/plain",
         )
 
     with col_e2:
-        st.markdown("#### Download Benchmark Datasets")
+        st.markdown("#### Audit datasets")
         include_raw_text = st.checkbox("Include raw prompts and responses in JSON", value=False,
                                        help="Use only for private inspection; review before sharing.")
         json_str = json.dumps({
@@ -485,7 +466,7 @@ with tab5:
             "comparisons": [DatasetExporter.comparison_record(c, include_raw_text) for c in comparisons],
         }, indent=2)
         st.download_button(
-            "⬇️ Download Full Audit Dataset (.JSON)",
+            "Download JSON dataset",
             data=json_str,
             file_name=f"promptbench_audit_{selected_scenario}.json",
             mime="application/json",
@@ -498,7 +479,7 @@ with tab5:
         csv_df = pd.DataFrame([{key: DatasetExporter.comparison_record(c).get(key) for key in csv_columns}
                                for c in comparisons], columns=csv_columns)
         st.download_button(
-            "⬇️ Download Flat Comparisons (.CSV)",
+            "Download CSV comparisons",
             data=csv_df.to_csv(index=False),
             file_name=f"promptbench_audit_{selected_scenario}.csv",
             mime="text/csv",
