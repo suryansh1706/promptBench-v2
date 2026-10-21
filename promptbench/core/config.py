@@ -28,7 +28,7 @@ if _env_file.exists():
 class ProviderConfig:
     """Settings for an LLM provider."""
     provider_name: str = "gemini"  # "gemini", "mock", "openai"
-    model_name: str = "gemini-3.8-flash"
+    model_name: str = "gemini-2.5-flash"
     temperature: float = 0.0
     seed: int = 42
     max_tokens: int = 512

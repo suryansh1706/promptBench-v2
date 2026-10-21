@@ -122,11 +122,21 @@ def run_cached_audit(scenario_id: str, provider_name: str, model_name: str, samp
     # Aggregate fairness
     group_decisions = {}
     for c in comparisons:
-        grp = c.demographic_group
+        if c.demographic_axis == "control" or c.decision_perturbed is None:
+            continue
+        grp = f"{c.demographic_axis}:{c.demographic_group}"
         if grp not in group_decisions:
             group_decisions[grp] = []
         group_decisions[grp].append(c.decision_perturbed)
     fairness = DecisionConsistencyScorer.compute_demographic_parity_and_disparate_impact(group_decisions)
+    fairness["by_axis"] = {
+        axis: DecisionConsistencyScorer.compute_demographic_parity_and_disparate_impact(
+            {label.split(":", 1)[1]: decisions for label, decisions in group_decisions.items()
+             if label.startswith(f"{axis}:")}
+        )
+        for axis in sorted({c.demographic_axis for c in comparisons if c.demographic_axis != "control"})
+    }
+    fairness["disparate_impact_ratio"] = None
 
     return all_prompts, comparisons, hyp_results, fairness
 
@@ -143,22 +153,22 @@ selected_scenario = st.sidebar.selectbox(
 
 provider_choice = st.sidebar.selectbox(
     "LLM Provider Engine",
-    options=["gemini", "mock", "openai"],
+    options=["mock", "gemini", "openai"],
     format_func=lambda x: {
-        "gemini": "Google Gemini API (100% Free Tier - Recommended)",
+        "gemini": "Google Gemini API",
         "mock": "Mock LLM (Deterministic Offline Demo)",
         "openai": "OpenAI API (Paid Tier)",
     }[x],
     index=0,
 )
 
-model_choice = "gemini-3.8-flash"
+model_choice = "promptbench-mock-v1"
 if provider_choice == "gemini":
     model_choice = st.sidebar.selectbox(
         "Gemini Model",
-        ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-pro"],
+        ["gemini-2.5-flash", "gemini-2.5-pro"],
         index=0,
-        help="Gemini 3.8 Flash is Google's ultra-fast free tier model.",
+        help="Select a model available to your API key.",
     )
     api_key_input = st.sidebar.text_input(
         "Google Gemini API Key",
@@ -171,7 +181,7 @@ if provider_choice == "gemini":
         os.environ["GEMINI_API_KEY"] = api_key_input
         st.sidebar.success("✓ Gemini API Key configured")
     else:
-        st.sidebar.info("💡 **Free Key Required**: Get your free key from [Google AI Studio](https://aistudio.google.com/app/apikey) and paste it above.")
+        st.sidebar.info("A Gemini API key is required for live audits. Check current pricing and limits before running a large audit.")
 elif provider_choice == "openai":
     model_choice = st.sidebar.selectbox("OpenAI Model", ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"])
     api_key_input = st.sidebar.text_input(
@@ -203,11 +213,11 @@ st.markdown(
 if provider_choice == "gemini" and not os.environ.get("GEMINI_API_KEY"):
     st.warning("⚠️ **Google Gemini API Key is required to run live audits.**")
     st.info(
-        "📌 **How to get your 100% Free Gemini API Key in 30 seconds (No credit card needed):**\n"
+        "To configure Gemini access:\n"
         "1. Open [Google AI Studio (API Keys)](https://aistudio.google.com/app/apikey).\n"
         "2. Click **'Create API Key'**.\n"
         "3. Copy and paste your key into the **Google Gemini API Key** box in the left sidebar.\n\n"
-        "*Alternatively, switch the Provider Engine in the sidebar to **'Mock LLM (Deterministic Offline Demo)'** to explore the complete audit dashboard immediately without an API key.*"
+        "*Select Mock LLM in the sidebar for an offline pipeline demonstration.*"
     )
     st.stop()
 elif provider_choice == "openai" and not os.environ.get("OPENAI_API_KEY"):
@@ -222,10 +232,13 @@ with st.spinner(f"Executing PromptBench 5-Stage Audit Pipeline using {provider_c
 
 
 # Compute Top Metrics
-mean_sim = np.mean([c.embedding_cosine_similarity for c in comparisons]) if comparisons else 1.0
-mean_sent_delta = np.mean([c.sentiment_delta for c in comparisons]) if comparisons else 0.0
-decision_match_rate = sum(1 for c in comparisons if c.decision_matches) / len(comparisons) if comparisons else 1.0
-disparate_impact = fairness.get("disparate_impact_ratio", 1.0)
+demographic_comparisons = [c for c in comparisons if c.demographic_axis != "control"]
+control_comparisons = [c for c in comparisons if c.demographic_axis == "control"]
+mean_sim = np.mean([c.embedding_cosine_similarity for c in demographic_comparisons]) if demographic_comparisons else 0.0
+mean_sent_delta = np.mean([c.sentiment_delta for c in demographic_comparisons]) if demographic_comparisons else 0.0
+decided_pairs = [c for c in demographic_comparisons if c.decision_matches is not None]
+decision_match_rate = sum(1 for c in decided_pairs if c.decision_matches) / len(decided_pairs) if decided_pairs else 0.0
+disparate_impact = fairness.get("disparate_impact_ratio")
 significant_count = sum(1 for r in hyp_results if r.is_significant_fdr)
 
 # Top KPI Summary Row
@@ -236,7 +249,7 @@ with col1:
         <div class='metric-label'>Cosine Similarity (S_C)</div>
         <div class='metric-value'>{mean_sim:.4f}</div>
         <span style='color:{"#16A34A" if mean_sim > 0.90 else "#DC2626"};font-size:0.8rem;'>
-            {"✓ High Semantic Alignment" if mean_sim > 0.90 else "⚠ Significant Drift"}
+            Descriptive response similarity
         </span>
     </div>
     """, unsafe_allow_html=True)
@@ -247,7 +260,7 @@ with col2:
         <div class='metric-label'>Sentiment Delta (ΔS)</div>
         <div class='metric-value'>{mean_sent_delta:+.4f}</div>
         <span style='color:{"#16A34A" if abs(mean_sent_delta) < 0.05 else "#DC2626"};font-size:0.8rem;'>
-            {"✓ Balanced Tone" if abs(mean_sent_delta) < 0.05 else "⚠ Systematic Valence Drift"}
+            Descriptive average
         </span>
     </div>
     """, unsafe_allow_html=True)
@@ -258,7 +271,7 @@ with col3:
         <div class='metric-label'>Decision Consistency</div>
         <div class='metric-value'>{decision_match_rate * 100:.1f}%</div>
         <span style='color:{"#16A34A" if decision_match_rate >= 0.90 else "#DC2626"};font-size:0.8rem;'>
-            {len(comparisons)} Matched Pairs Tested
+            {len(decided_pairs)} Pairs With Parsed Decisions
         </span>
     </div>
     """, unsafe_allow_html=True)
@@ -266,10 +279,10 @@ with col3:
 with col4:
     st.markdown(f"""
     <div class='metric-card'>
-        <div class='metric-label'>Disparate Impact (DIR)</div>
-        <div class='metric-value'>{disparate_impact:.2f}</div>
-        <span style='color:{"#16A34A" if disparate_impact >= 0.80 else "#DC2626"};font-size:0.8rem;'>
-            {"✓ Passes 4/5ths Rule" if disparate_impact >= 0.80 else "⚠ Adverse Impact (< 0.80)"}
+        <div class='metric-label'>Selection-Rate Ratio</div>
+        <div class='metric-value'>{f'{disparate_impact:.2f}' if disparate_impact is not None else 'N/A'}</div>
+        <span style='font-size:0.8rem;color:#64748B;'>
+            Descriptive synthetic-sample measure
         </span>
     </div>
     """, unsafe_allow_html=True)
@@ -277,7 +290,7 @@ with col4:
 with col5:
     st.markdown(f"""
     <div class='metric-card'>
-        <div class='metric-label'>Significant Biases (BH FDR)</div>
+        <div class='metric-label'>FDR-Significant Contrasts</div>
         <div class='metric-value' style='color:{"#DC2626" if significant_count > 0 else "#16A34A"};'>{significant_count}</div>
         <span style='font-size:0.8rem;color:#64748B;'>α = 0.05 Threshold</span>
     </div>
@@ -297,11 +310,21 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # TAB 1: EXECUTIVE SUMMARY & HEATMAPS
 with tab1:
     st.subheader("Cross-Demographic Response Disparity Heatmap")
-    st.caption("Visualizes average semantic cosine similarity across cultural ethnicity and socioeconomic status (SES) tiers.")
+    st.caption("Descriptive response similarity by isolated demographic axis and group.")
+    if control_comparisons:
+        st.markdown("**Calibration controls** — IDENTICAL estimates repeat response noise; SHAM estimates sensitivity to a neutral surface edit.")
+        control_rows = [{"Condition": c.condition, "Similarity": c.embedding_cosine_similarity,
+                         "Sentiment delta": c.sentiment_delta, "Decision match": c.decision_matches}
+                        for c in control_comparisons]
+        st.dataframe(pd.DataFrame(control_rows).groupby("Condition", dropna=False).agg(
+            Pairs=("Similarity", "size"),
+            Mean_similarity=("Similarity", "mean"),
+            Mean_sentiment_delta=("Sentiment delta", "mean"),
+        ), width="stretch")
 
     # Construct tabular heatmap matrix
     records = []
-    for c in comparisons:
+    for c in demographic_comparisons:
         prof = c.perturbed_prompt.demographic_profile
         records.append({
             "Ethnicity": prof.attributes.get("culture_label", prof.ethnicity.replace("_", " ").title()),
@@ -309,19 +332,19 @@ with tab1:
             "Gender": prof.gender.capitalize(),
             "Cosine Similarity": c.embedding_cosine_similarity,
             "Sentiment Delta": c.sentiment_delta,
-            "Score Delta": c.score_delta if c.score_delta is not None else 0.0,
+            "Score Delta": c.score_delta,
+            "Axis": c.demographic_axis,
+            "Group": c.demographic_group,
         })
     df_metrics = pd.DataFrame(records)
 
     col_h1, col_h2 = st.columns([3, 2])
     with col_h1:
-        heatmap_df = df_metrics.pivot_table(
-            index="Ethnicity", columns="SES", values="Cosine Similarity", aggfunc="mean"
-        )
-        st.dataframe(
-            heatmap_df.style.background_gradient(cmap="Blues", vmin=0.80, vmax=1.00).format("{:.4f}"),
-            width="stretch",
-        )
+        if not df_metrics.empty:
+            heatmap_df = df_metrics.pivot_table(index="Axis", columns="Group", values="Cosine Similarity", aggfunc="mean")
+            st.dataframe(heatmap_df.style.background_gradient(cmap="Blues", vmin=0, vmax=1).format("{:.4f}"), width="stretch")
+        else:
+            st.info("No valid demographic comparisons were returned.")
 
     with col_h2:
         st.markdown("**Selection Rate by Demographic Subgroup**")
@@ -334,23 +357,27 @@ with tab1:
 with tab2:
     st.subheader("Non-Parametric Hypothesis Tests & False Discovery Rate (FDR) Control")
     st.markdown(
-        "Evaluates whether observed response drift is statistically significant using **Paired Permutation Tests** ($B=10,000$), "
-        "**Bootstrap 95% Confidence Intervals**, and **Benjamini-Hochberg FDR** correction."
+        "Contrasts are computed within each template, then tested across independent templates using "
+        "paired permutation tests, bootstrap intervals, and Benjamini-Hochberg FDR correction. "
+        "A single selected scenario has one template, so its contrasts are descriptive."
     )
 
     if hyp_results:
         table_rows = []
         for r in hyp_results:
-            badge = "🚨 SIGNIFICANT" if r.is_significant_fdr else "✓ Invariant"
+            badge = "Below 0.05" if r.is_significant_fdr else "Not below 0.05"
             table_rows.append({
                 "Demographic Axis": r.demographic_axis.capitalize(),
                 "Target Subgroup": r.target_group,
-                "Sample Size (N)": r.sample_size,
+                "Metric": r.metric_tested,
+                "Reference": r.calibration_reference,
+                "Templates (N)": r.sample_size,
+                "Pairs": r.observation_count,
                 "Observed Δ": f"{r.observed_difference:+.4f}",
-                "Cohen's d": f"{r.effect_size_cohens_d:+.2f}",
+                "Paired effect d": f"{r.effect_size_cohens_d:+.2f}" if r.effect_size_cohens_d is not None else "N/A",
                 "Permutation p-val": f"{r.permutation_p_value:.4f}",
                 "BH FDR Adjusted p-val": f"{r.benjamini_hochberg_p_value:.4f}",
-                "95% Bootstrap CI": f"[{r.bootstrap_ci_95[0]:+.3f}, {r.bootstrap_ci_95[1]:+.3f}]",
+                "95% Bootstrap CI": f"[{r.bootstrap_ci_95[0]:+.3f}, {r.bootstrap_ci_95[1]:+.3f}]" if all(x is not None for x in r.bootstrap_ci_95) else "N/A",
                 "FDR Significance": badge,
             })
         
@@ -358,13 +385,13 @@ with tab2:
         st.dataframe(df_hyp, width="stretch")
 
         st.markdown("---")
-        st.subheader("Effect Size Forest Plot with 95% Bootstrap Confidence Intervals")
+        st.subheader("Observed contrasts and 95% bootstrap intervals")
         
         # Prepare Forest Plot Data
         chart_data = pd.DataFrame([
             {
-                "Subgroup": r.target_group,
-                "Effect Size (Cohen's d)": r.effect_size_cohens_d,
+                "Subgroup": f"{r.demographic_axis}:{r.target_group}:{r.metric_tested}:{r.calibration_reference}",
+                "Observed Delta": r.observed_difference,
                 "CI Lower": r.bootstrap_ci_95[0],
                 "CI Upper": r.bootstrap_ci_95[1],
             }
@@ -454,7 +481,7 @@ with tab4:
 # TAB 5: ACADEMIC LATEX & DATASET EXPORT
 with tab5:
     st.subheader("📑 Academic Artifacts & Benchmark Dataset Exporters")
-    st.markdown("Download publication-ready LaTeX tables, Markdown executive summaries, and anonymized JSON/CSV datasets.")
+    st.markdown("Download LaTeX tables and JSON/CSV audit datasets. Inspect exported prompts and responses before sharing them.")
 
     col_e1, col_e2 = st.columns(2)
     with col_e1:
@@ -470,9 +497,14 @@ with tab5:
 
     with col_e2:
         st.markdown("#### Download Benchmark Datasets")
+        include_raw_text = st.checkbox("Include raw prompts and responses in JSON", value=False,
+                                       help="Use only for private inspection; review before sharing.")
         json_str = json.dumps({
             "scenario": selected_scenario,
-            "comparisons": [c.to_dict() for c in comparisons],
+            "provider": provider_choice,
+            "model": model_choice,
+            "raw_text_included": include_raw_text,
+            "comparisons": [DatasetExporter.comparison_record(c, include_raw_text) for c in comparisons],
         }, indent=2)
         st.download_button(
             "⬇️ Download Full Audit Dataset (.JSON)",
@@ -481,7 +513,12 @@ with tab5:
             mime="application/json",
         )
 
-        csv_df = pd.DataFrame([c.to_dict() for c in comparisons])
+        csv_columns = ["pair_id", "template_id", "scenario_category", "condition", "demographic_axis",
+                       "demographic_group", "baseline_group", "embedding_cosine_similarity", "similarity_method",
+                       "sentiment_base", "sentiment_perturbed", "sentiment_delta", "decision_base",
+                       "decision_perturbed", "decision_matches", "score_base", "score_perturbed", "score_delta"]
+        csv_df = pd.DataFrame([{key: DatasetExporter.comparison_record(c).get(key) for key in csv_columns}
+                               for c in comparisons], columns=csv_columns)
         st.download_button(
             "⬇️ Download Flat Comparisons (.CSV)",
             data=csv_df.to_csv(index=False),

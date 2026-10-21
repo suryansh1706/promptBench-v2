@@ -1,89 +1,116 @@
-"""
-Automated Academic Research & LaTeX Report Generator for PromptBench.
-Produces publication-ready LaTeX tables, Markdown executive summaries, and fairness scorecards.
-"""
+"""Generate transparent Markdown and LaTeX summaries for PromptBench audits."""
 
-from typing import List, Dict, Any, Optional
-import time
-from ..core.types import AuditSummary, HypothesisTestResult, PairwiseComparison
+from datetime import datetime, timezone
+from typing import List
+
+from ..core.types import AuditSummary, HypothesisTestResult
+
+
+def _ci_text(result: HypothesisTestResult) -> str:
+    low, high = result.bootstrap_ci_95
+    return f"[{low:+.3f}, {high:+.3f}]" if low is not None and high is not None else "N/A"
+
+
+def _tex(value: str) -> str:
+    return (str(value).replace("\\", r"\textbackslash{}")
+            .replace("&", r"\&").replace("%", r"\%").replace("_", r"\_"))
 
 
 class ReportGenerator:
-    """
-    Generates academic research reports and formatted LaTeX tables for Minor Project paper submissions.
-    """
+    """Produce descriptive reports without overstating statistical evidence."""
 
     @staticmethod
     def generate_latex_table(results: List[HypothesisTestResult]) -> str:
-        """
-        Formats hypothesis test results into a standard IEEE/NeurIPS LaTeX table.
-        """
-        latex = [
+        lines = [
             r"\begin{table*}[t]",
             r"\centering",
-            r"\caption{Demographic Bias and Response Drift Audit Results with Multiple Comparisons Correction.}",
+            r"\caption{Matched response contrasts with multiple-comparison correction.}",
             r"\label{tab:promptbench_results}",
             r"\small",
-            r"\begin{tabular}{llccccc}",
+            r"\begin{tabular}{lllllcccccc}",
             r"\toprule",
-            r"\textbf{Demographic Axis} & \textbf{Target Subgroup} & \textbf{Observed $\Delta$} & \textbf{Cohen's $d$} & \textbf{Raw $p$-val} & \textbf{BH FDR $p$-val} & \textbf{95\% Bootstrap CI} \\",
+            r"Axis & Subgroup & Metric & Reference & Condition & Templates & $\Delta$ & Effect $d$ & Raw $p$ & BH $p$ & 95\% CI \\",
             r"\midrule",
         ]
-
-        for r in results:
-            ci_str = f"[{r.bootstrap_ci_95[0]:+.3f}, {r.bootstrap_ci_95[1]:+.3f}]"
-            sig_marker = r"$^{*}$" if r.is_significant_fdr else ""
-            latex.append(
-                f"{r.demographic_axis.capitalize()} & {r.target_group} & {r.observed_difference:+.4f} & "
-                f"{r.effect_size_cohens_d:+.2f} & {r.raw_p_value:.4f} & {r.benjamini_hochberg_p_value:.4f}{sig_marker} & {ci_str} \\\\"
+        for result in results:
+            effect = f"{result.effect_size_cohens_d:+.2f}" if result.effect_size_cohens_d is not None else "N/A"
+            star = r"$^{*}$" if result.is_significant_fdr else ""
+            lines.append(
+                f"{_tex(result.demographic_axis)} & {_tex(result.target_group)} & {_tex(result.metric_tested)} & "
+                f"{_tex(result.calibration_reference)} & {_tex(result.condition)} & {result.sample_size} & "
+                f"{result.observed_difference:+.4f} & {effect} & {result.raw_p_value:.4f} & "
+                f"{result.benjamini_hochberg_p_value:.4f}{star} & {_ci_text(result)} \\\\"
             )
-
-        latex.extend([
+        lines += [
             r"\bottomrule",
-            r"\multicolumn{7}{l}{\footnotesize $^{*}$Statistically significant after Benjamini-Hochberg False Discovery Rate control at $\alpha=0.05$.} \\",
+            r"\multicolumn{11}{l}{\footnotesize $^{*}$FDR-adjusted $p<0.05$; a measured difference does not identify a causal bias.} \\",
             r"\end{tabular}",
             r"\end{table*}",
-        ])
-
-        return "\n".join(latex)
+        ]
+        return "\n".join(lines)
 
     @staticmethod
     def generate_markdown_summary(summary: AuditSummary) -> str:
-        """
-        Creates a clean, comprehensive executive summary in GitHub-Flavored Markdown.
-        """
+        date = datetime.fromtimestamp(summary.timestamp, timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
         lines = [
-            f"# PromptBench Bias Audit Executive Report",
+            "# PromptBench Audit Report",
             f"**Audit ID:** `{summary.audit_id}`  ",
-            f"**Evaluated Model:** `{summary.model_name}` ({summary.provider.capitalize()})  ",
+            f"**Evaluated Model:** `{summary.model_name}` ({summary.provider})  ",
             f"**Scenario Domain:** `{summary.scenario_category}`  ",
-            f"**Audit Date:** {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(summary.timestamp))}  ",
+            f"**Audit Date:** {date}  ",
+            f"**Provider type:** {'Synthetic mock (pipeline demonstration)' if summary.provider == 'mock' else 'Live model'}  ",
             "",
-            "## 1. High-Level Metrics Overview",
-            f"- **Total Prompts Tested:** {summary.total_prompts_tested}",
-            f"- **Total Counterfactual Pairs Evaluated:** {summary.total_pairs_evaluated}",
-            f"- **Mean Semantic Embedding Cosine Similarity:** `{summary.overall_mean_similarity:.4f}`",
-            f"- **Mean Sentiment Delta ($\Delta$ Sentiment):** `{summary.overall_mean_sentiment_delta:+.4f}`",
-            f"- **Decision Consistency Rate:** `{summary.overall_decision_consistency_rate * 100:.1f}%`",
+            "## Metrics overview",
+            f"- **Prompts generated:** {summary.total_prompts_tested}",
+            f"- **Matched pairs evaluated, including controls:** {summary.total_pairs_evaluated}",
+            f"- **Mean response cosine similarity, demographic pairs:** `{summary.overall_mean_similarity:.4f}`",
+            f"- **Mean sentiment delta, demographic pairs:** `{summary.overall_mean_sentiment_delta:+.4f}`",
+            f"- **Decision consistency, parsed demographic pairs:** `{summary.overall_decision_consistency_rate * 100:.1f}%`",
             "",
-            "## 2. Statistical Hypothesis Testing & Significance",
-            "| Axis | Subgroup | Observed Delta | Permutation $p$ | BH FDR $p$ | 95% Bootstrap CI | Significant Bias? |",
-            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+            "## Calibration controls",
+            "IDENTICAL repeats the exact prompt to estimate response noise. SHAM uses a neutral surface edit to estimate generic prompt sensitivity.",
+            "",
         ]
+        controls = summary.axis_summaries.get("control_summary", {})
+        if controls:
+            lines += ["| Condition | Pairs | Mean sentiment delta | Mean response similarity |",
+                      "| :--- | ---: | ---: | ---: |"]
+            for condition, values in controls.items():
+                lines.append(f"| {condition} | {values['pairs']} | {values['mean_sentiment_delta']:+.4f} | {values['mean_embedding_similarity']:.4f} |")
+        else:
+            lines.append("No valid control pairs were available in this run.")
 
-        for r in summary.hypothesis_test_results:
-            sig = "**YES (p < 0.05)**" if r.is_significant_fdr else "No (p >= 0.05)"
-            ci = f"[{r.bootstrap_ci_95[0]:+.3f}, {r.bootstrap_ci_95[1]:+.3f}]"
-            lines.append(
-                f"| {r.demographic_axis.capitalize()} | {r.target_group} | {r.observed_difference:+.4f} | "
-                f"{r.permutation_p_value:.4f} | {r.benjamini_hochberg_p_value:.4f} | {ci} | {sig} |"
-            )
+        by_axis = summary.axis_summaries.get("by_axis", {})
+        if by_axis:
+            lines += ["", "### Selection rates by perturbation axis", "",
+                      "| Axis | Group | Selection rate | Excluded responses |",
+                      "| :--- | :--- | ---: | ---: |"]
+            for axis, metrics in by_axis.items():
+                for group, rate in metrics.get("selection_rates", {}).items():
+                    excluded = metrics.get("excluded_decision_counts", {}).get(group, 0)
+                    lines.append(f"| {axis} | {group} | {rate:.3f} | {excluded} |")
 
-        lines.extend([
+        lines += [
             "",
-            "## 3. Findings & Remediation Recommendations",
-        ])
-        for rec in summary.audit_recommendations:
-            lines.append(f"- {rec}")
-
-        return "\n".join(lines)
+            "## Statistical tests",
+            "Tests summarize matched response differences. A significant result identifies a measured difference under the test assumptions. Review controls, response extraction, sample size, and scoring instruments before attributing a cause.",
+            "",
+            "| Axis | Subgroup | Metric | Reference | Condition | Templates | Pairs | Delta | Permutation p | BH FDR p | 95% CI | FDR result |",
+            "| :--- | :--- | :--- | :--- | :--- | ---: | ---: | ---: | ---: | ---: | :--- | :--- |",
+        ]
+        for result in summary.hypothesis_test_results:
+            significant = "Below 0.05" if result.is_significant_fdr else "Not below 0.05"
+            lines.append(
+                f"| {result.demographic_axis} | {result.target_group} | {result.metric_tested} | "
+                f"{result.calibration_reference} | {result.condition} | {result.sample_size} | "
+                f"{result.observation_count} | {result.observed_difference:+.4f} | "
+                f"{result.permutation_p_value:.4f} | {result.benjamini_hochberg_p_value:.4f} | "
+                f"{_ci_text(result)} | {significant} |"
+            )
+        notes = sorted({r.inference_note for r in summary.hypothesis_test_results if r.inference_note})
+        if notes:
+            lines += ["", "### Inference notes", ""]
+            lines += [f"- {note}" for note in notes]
+        lines += ["", "## Interpretation and next steps", ""]
+        lines += [f"- {recommendation}" for recommendation in summary.audit_recommendations]
+        return "\n".join(lines) + "\n"
