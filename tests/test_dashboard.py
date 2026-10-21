@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from promptbench.perturbation.templates import SCENARIO_TEMPLATES
 
 ROOT = Path(__file__).resolve().parent.parent
 HAS_CHARTS = importlib.util.find_spec("matplotlib") is not None and importlib.util.find_spec("pandas") is not None
@@ -62,7 +63,7 @@ class TestDashboard(unittest.TestCase):
         self.assertEqual(len(at.exception), 0)
         at.sidebar.selectbox[0].select("all").run(timeout=60)
         self.assertEqual(len(at.exception), 0)
-        self.assertEqual(next(m.value for m in at.metric if m.label == "Scenario templates"), "4")
+        self.assertEqual(next(m.value for m in at.metric if m.label == "Scenario templates"), str(len(SCENARIO_TEMPLATES)))
 
     def test_local_selection_waits_without_inference(self):
         from streamlit.testing.v1 import AppTest

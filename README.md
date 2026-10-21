@@ -6,12 +6,14 @@ This is an exploratory research prototype. A significant response difference doe
 
 ## Run it
 
-Python 3.9 or newer is required.
+Python 3.12 or newer is required. Run the install and dashboard with the same Python environment. On this laptop, the existing `.venv` can be used directly:
 
 ```bash
-python3 -m pip install -e .
-streamlit run app.py
+uv pip install --python .venv/bin/python -e .
+.venv/bin/python -m streamlit run app.py
 ```
+
+For a new environment with Python 3.12 and standard `pip`, run `python3.12 -m venv .venv`, activate it, and then use `python -m pip install -e .` and `python -m streamlit run app.py`. The sentence-transformer backend is an optional extra: `python -m pip install -e '.[embeddings]'`.
 
 Choose **Mock LLM** for an offline demonstration. Its score/tone differences are deliberately programmed examples, not empirical findings about a live model. Gemini and OpenAI require `GEMINI_API_KEY` or `OPENAI_API_KEY`, supplied through the environment or dashboard sidebar. Live calls may incur provider charges.
 
@@ -20,8 +22,8 @@ Choose **Mock LLM** for an offline demonstration. Its score/tone differences are
 From the repository root:
 
 ```bash
-python3 -m unittest discover -v
-python3 -m promptbench.cli audit --scenario all --provider mock --model promptbench-mock-v1 --samples-per-group 2 --temperature 0 --seed 42 --output-dir /tmp/promptbench-reproduction
+.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python -m promptbench.cli audit --scenario all --provider mock --model promptbench-mock-v1 --samples-per-group 2 --temperature 0 --seed 42 --output-dir /tmp/promptbench-reproduction
 ```
 
 The test suite exercises controlled fields, uncached identical calls, sham controls, calibrated contrasts, template-level inference, missing decisions, failed requests, parsers, and instrument smoke checks without live model calls. Mock text and metrics are deterministic for the same settings; timestamps, response IDs, latency, and audit IDs are runtime provenance and can differ.
@@ -29,7 +31,7 @@ The test suite exercises controlled fields, uncached identical calls, sham contr
 A single-scenario run is useful for inspecting answers:
 
 ```bash
-python3 -m promptbench.cli audit --scenario job_swe_001 --provider mock --model promptbench-mock-v1 --output-dir /tmp/promptbench-hiring
+.venv/bin/python -m promptbench.cli audit --scenario job_swe_001 --provider mock --model promptbench-mock-v1 --output-dir /tmp/promptbench-hiring
 ```
 
 For a live provider, select its model explicitly:

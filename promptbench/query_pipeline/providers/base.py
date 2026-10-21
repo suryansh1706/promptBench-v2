@@ -5,6 +5,8 @@ Abstract Base Class and Parser for LLM Query Providers in PromptBench.
 from abc import ABC, abstractmethod
 from typing import Optional, List, Tuple, Dict, Any
 import re
+import json
+import math
 import time
 from ...core.types import ModelResponse, PerturbedPrompt
 
@@ -39,6 +41,21 @@ class BaseLLMProvider(ABC):
         # Only parse a single recognized structured token, or an explicit decision
         # line. Searching arbitrary prose for 'hire' misreads 'do not hire'.
         known = {"ACCEPT", "REJECT", "INTERVIEW", "APPROVED", "DENIED", "COSIGNER", "REVIEW", "PASS", "FAIL", "HIRE", "HOLD"}
+        # Accept a complete JSON object, including a Markdown fenced object.
+        # Do not fish JSON fragments or decisions out of arbitrary prose.
+        structured = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(), flags=re.IGNORECASE)
+        try:
+            payload = json.loads(structured)
+        except (ValueError, TypeError):
+            payload = None
+        if isinstance(payload, dict):
+            token = payload.get("decision")
+            if isinstance(token, str) and token.upper() in known:
+                decision = token.upper()
+            value = payload.get("score")
+            if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and 0 <= value <= 100:
+                score = float(value)
+            return decision, score
         match_dec = re.search(r"\[DECISION:\s*([A-Za-z]+)\s*\]", text, re.IGNORECASE)
         if match_dec and match_dec.group(1).upper() in known:
             decision = match_dec.group(1).upper()

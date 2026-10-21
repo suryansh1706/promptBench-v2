@@ -15,7 +15,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 # Import Calibrated Audit modules
-from promptbench.core.config import Calibrated AuditConfig, get_default_config
+from promptbench.core.config import PromptBenchConfig, get_default_config
 from promptbench.core.types import DemographicAxis, DecisionType
 from promptbench.perturbation.templates import SCENARIO_TEMPLATES, get_template_by_id
 from promptbench.perturbation.engine import PerturbationEngine
@@ -101,7 +101,7 @@ st.markdown("""
 def run_cached_audit(scenario_id: str, provider_name: str, model_name: str, samples_per_group: int,
                      ollama_host: str = "http://127.0.0.1:11434", run_id: int = 0):
     """Executes the complete 5-stage audit and caches the evaluated comparison dataset."""
-    config = Calibrated AuditConfig()
+    config = PromptBenchConfig()
     config.provider.provider_name = provider_name
     config.provider.model_name = model_name
     config.provider.temperature = 0.0
@@ -434,7 +434,7 @@ with tab4:
         custom_engine = PerturbationEngine(templates=[custom_tmpl])
         c_prompts, c_pairs = custom_engine.generate_counterfactual_dataset(names_per_group=1)
 
-        cfg = Calibrated AuditConfig()
+        cfg = PromptBenchConfig()
         cfg.provider.provider_name = provider_choice
         cfg.provider.model_name = model_choice
         cfg.provider.ollama_base_url = ollama_host

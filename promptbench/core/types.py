@@ -78,6 +78,7 @@ class ModelResponse:
     timestamp: float = field(default_factory=time.time)
     cache_hit: bool = False
     metadata: Dict[str, Any] = field(default_factory=dict)
+    status: str = "ok"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
