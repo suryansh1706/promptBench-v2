@@ -112,7 +112,7 @@ class QueryOrchestrator:
         )
 
         # 3. Store in cache
-        if self.cache and cache_key and response.extracted_decision != "ERROR" and not response.metadata.get("error"):
+        if self.cache and cache_key and response.status == "ok" and response.extracted_decision != "ERROR" and not response.metadata.get("error"):
             self.cache.set(cache_key, response)
 
         return response
@@ -163,6 +163,7 @@ class QueryOrchestrator:
                         extracted_decision="ERROR",
                         extracted_score=None,
                         latency_ms=0.0,
+                        status="error",
                     )
                 
                 completed_count += 1
@@ -179,5 +180,6 @@ class QueryOrchestrator:
                 response_id=f"error_{prompt.prompt_id}", prompt_id=prompt.prompt_id,
                 provider=self.provider.__class__.__name__, model_name=self.provider.model_name,
                 raw_text=f"Request failed: {error}", extracted_decision="ERROR",
+                status="error",
                 metadata={"error": str(error)},
             )
