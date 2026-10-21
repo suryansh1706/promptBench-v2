@@ -1,5 +1,7 @@
 # PromptBench minor project submission guide
 
+For a concise speaking outline, use [PRESENTATION_NOTES.md](PRESENTATION_NOTES.md).
+
 ## What to demonstrate
 
 1. Start the dashboard: `streamlit run app.py` after installing the project with `python3 -m pip install -e .`.
