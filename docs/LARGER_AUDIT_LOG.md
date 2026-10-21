@@ -139,3 +139,8 @@ The run completed on the local Ollama service. There were no cloud model calls. 
 ## Publication status — 2026-10-21
 
 The curated reports and log were committed locally on `codex/larger-ollama-results` as `6a40e29`. An attempt to push the branch was rejected by automatic approval review. The stated reason was that publishing these audit artifacts to the external GitHub remote is an export to an unverified destination and that the available user messages did not specifically authorize that export. No workaround or retry was attempted. As a result, the branch was not pushed, no pull request was created, and there is no CI status. The local curated files and ZIP remain available for review.
+
+
+## Approved publication update — 2026-10-21
+
+After the earlier automatic rejection, the user explicitly approved pushing the reviewed source changes, documentation, and minimized 232-response Ollama artifacts to `suryansh1706/promptBench-v2`. The approved branch `codex/larger-ollama-results` was pushed and pull request [#3](https://github.com/suryansh1706/promptBench-v2/pull/3) was opened against `main`; it remains open for review. At the time of this log update, the `unittest` CI check is pending. The branch and curated archive exclude raw response journals, private checkpoints, run manifests, credentials, and API keys.
