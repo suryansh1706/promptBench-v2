@@ -2,7 +2,7 @@
 
 The run reports group-level decision-flip, numeric-score, embedding-similarity, and secondary sentiment tests. Degenerate or undersized groups are explicitly flagged and receive no inferential p-values. Benjamini–Hochberg correction is applied once over all testable group/metric comparisons. A statsmodels mixed-effects fit is attempted and falls back with a logged reason; `estimate_paired_sample_size()` provides a normal-approximation planning estimate.
 
-The **Statistical Testing Engine** is Stage 4 of PromptBench. It establishes whether observed differences across demographic prompt variants are statistically significant rather than stochastic noise, using distribution-free permutation tests, non-parametric bootstrap confidence intervals, and False Discovery Rate (FDR) control.
+The **Statistical Testing Engine** is Stage 4 of Calibrated Audit. It establishes whether observed differences across demographic prompt variants are statistically significant rather than stochastic noise, using distribution-free permutation tests, non-parametric bootstrap confidence intervals, and False Discovery Rate (FDR) control.
 
 ---
 
@@ -10,7 +10,7 @@ The **Statistical Testing Engine** is Stage 4 of PromptBench. It establishes whe
 
 Standard benchmark audits frequently report raw metric deltas (e.g., a $+0.04$ shift in similarity) without assessing statistical significance. When evaluating across multiple demographic groups and templates, stochastic generation noise can produce spurious differences.
 
-PromptBench formally evaluates:
+Calibrated Audit formally evaluates:
 - **Null Hypothesis ($H_0$)**: The distribution of paired differences between baseline and perturbed responses is symmetric around zero ($\mu_\Delta = 0$), implying no demographic bias.
 - **Alternative Hypothesis ($H_1$)**: The distribution exhibits significant systematic drift ($\mu_\Delta \ne 0$).
 

@@ -1,6 +1,6 @@
-# PromptBench: Master Algorithms & Mathematical Foundations Reference
+# Calibrated Audit: Master Algorithms & Mathematical Foundations Reference
 
-This document provides a rigorous mathematical and algorithmic explanation of every computational technique implemented in **PromptBench: A Framework for Auditing Demographic Bias in Large Language Model Responses**.
+This document provides a rigorous mathematical and algorithmic explanation of every computational technique implemented in **Calibrated Audit: A Framework for Auditing Demographic Bias in Large Language Model Responses**.
 
 ---
 
@@ -39,7 +39,7 @@ Where $\text{norm}(x)$ performs UTF-8 whitespace trimming and case normalization
 ## 2. Combinatorial Counterfactual Perturbation Engine
 
 ### Research Principle:
-PromptBench tests for **individual counterfactual fairness**:
+Calibrated Audit tests for **individual counterfactual fairness**:
 $$\mathcal{M}(P_{\text{base}}) \stackrel{d}{=} \mathcal{M}(P_{\text{pert}}) \quad \text{when} \quad d_{\text{substantive}}(P_{\text{base}}, P_{\text{pert}}) = 0$$
 
 ### Algorithmic Formulation:

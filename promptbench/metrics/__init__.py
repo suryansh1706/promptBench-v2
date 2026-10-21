@@ -1,5 +1,5 @@
 """
-Bias and Drift Metrics Engine for PromptBench.
+Bias and Drift Metrics Engine for Calibrated Audit.
 """
 
 from .embeddings import CosineEmbeddingScorer

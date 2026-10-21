@@ -1,5 +1,5 @@
 """
-Master Bias & Response Drift Scorer for PromptBench.
+Master Bias & Response Drift Scorer for Calibrated Audit.
 Aggregates embedding similarity, sentiment deltas, decision consistency, and effect sizes.
 """
 

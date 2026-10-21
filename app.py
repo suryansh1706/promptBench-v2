@@ -1,5 +1,5 @@
 """
-PromptBench: Interactive Web Dashboard for Auditing LLM Demographic Bias.
+Calibrated Audit: Interactive Web Dashboard for Auditing LLM Demographic Bias.
 Streamlit Application providing interactive heatmaps, forest plots, side-by-side inspectors, and LaTeX export.
 """
 
@@ -14,7 +14,7 @@ import numpy as np
 # Ensure root path is accessible
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-# Import PromptBench modules
+# Import Calibrated Audit modules
 from promptbench.core.config import PromptBenchConfig, get_default_config
 from promptbench.core.types import DemographicAxis, DecisionType
 from promptbench.perturbation.templates import SCENARIO_TEMPLATES, get_template_by_id
@@ -35,7 +35,7 @@ import platform
 
 # Page Setup
 st.set_page_config(
-    page_title="PromptBench | Auditing LLM Demographic Bias",
+    page_title="Calibrated Audit | Auditing LLM Demographic Bias",
     page_icon="⚖️",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -211,7 +211,7 @@ st.sidebar.markdown("• Parth Mudgal (00196402723)\n• Suryansh Rastogi (02696
 st.sidebar.markdown("**Project Guide:** Ms. Kajol Dahiya")
 
 # Main Header
-st.markdown("<div class='main-header'>PromptBench: LLM Demographic Bias Auditing Framework</div>", unsafe_allow_html=True)
+st.markdown("<div class='main-header'>Calibrated Audit: LLM Demographic Bias Auditing Framework</div>", unsafe_allow_html=True)
 st.markdown(
     "<div class='sub-header'>A statistically rigorous evaluation suite for detecting demographic & socioeconomic drift "
     "across Large Language Model responses under invariant substantive qualifications.</div>",
@@ -234,7 +234,7 @@ elif provider_choice == "openai" and not os.environ.get("OPENAI_API_KEY"):
     st.stop()
 
 # Run Audit Pipeline
-with st.spinner(f"Executing PromptBench 5-Stage Audit Pipeline using {provider_choice.upper()} ({model_choice})..."):
+with st.spinner(f"Executing Calibrated Audit pipeline using {provider_choice.upper()} ({model_choice})..."):
     all_prompts, comparisons, hyp_results, fairness, excluded, run_metadata = run_cached_audit(
         selected_scenario, provider_choice, model_choice, samples_count
     )
@@ -489,7 +489,7 @@ with tab5:
         st.download_button(
             "⬇️ Download table_results.tex",
             data=latex_str,
-            file_name="promptbench_table_results.tex",
+            file_name="calibrated_audit_table_results.tex",
             mime="text/plain",
         )
 
@@ -506,7 +506,7 @@ with tab5:
         st.download_button(
             "⬇️ Download Full Audit Dataset (.JSON)",
             data=json_str,
-            file_name=f"promptbench_audit_{selected_scenario}.json",
+            file_name=f"calibrated_audit_{selected_scenario}.json",
             mime="application/json",
         )
 
@@ -523,7 +523,7 @@ with tab5:
         st.download_button(
             "⬇️ Download Flat Comparisons (.CSV)",
             data=csv_df.to_csv(index=False),
-            file_name=f"promptbench_audit_{selected_scenario}.csv",
+            file_name=f"calibrated_audit_{selected_scenario}.csv",
             mime="text/csv",
         )
 

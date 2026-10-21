@@ -1,5 +1,5 @@
 """
-Configuration management for PromptBench.
+Configuration management for Calibrated Audit.
 Centralizes all hyperparameters, model settings, statistical parameters, and cache configs.
 """
 
@@ -22,6 +22,10 @@ if _env_file.exists():
                         os.environ[k] = v
     except Exception:
         pass
+
+
+# Name candidates: CounterfactualQA, FairPromptLab, and Calibrated Audit.
+CALIBRATED_AUDIT = "Calibrated Audit"
 
 
 @dataclass
@@ -53,8 +57,8 @@ class StatisticalConfig:
 
 @dataclass
 class PromptBenchConfig:
-    """Master configuration for a PromptBench audit run."""
-    project_name: str = "PromptBench"
+    """Master configuration for a Calibrated Audit audit run."""
+    project_name: str = CALIBRATED_AUDIT
     version: str = "1.1.0"
     base_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent)
     data_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parent.parent.parent / "data")
@@ -86,5 +90,5 @@ class PromptBenchConfig:
 
 
 def get_default_config() -> PromptBenchConfig:
-    """Returns the default PromptBench configuration."""
+    """Returns the default Calibrated Audit configuration."""
     return PromptBenchConfig()

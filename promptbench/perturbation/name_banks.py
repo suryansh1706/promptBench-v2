@@ -1,6 +1,6 @@
 """
 Curated Multi-Cultural Name Banks, Pronouns, Nationalities, and Socioeconomic Cues.
-Used for controlled surface-form demographic perturbation in PromptBench.
+Used for controlled surface-form demographic perturbation in Calibrated Audit.
 """
 
 from typing import List, Dict, Any, Optional

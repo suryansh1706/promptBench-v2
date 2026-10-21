@@ -1,5 +1,5 @@
 """
-Query Pipeline for PromptBench.
+Query Pipeline for Calibrated Audit.
 Provides provider clients (Gemini, OpenAI, Mock) and batch execution orchestration.
 """
 

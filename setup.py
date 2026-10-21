@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="promptbench",
+    name="calibrated-audit",
     version="1.1.0",
     description="A Framework for Auditing Demographic Bias in Large Language Model Responses",
     author="Parth Mudgal, Suryansh Rastogi, Siddharth Sharma",
@@ -18,6 +18,7 @@ setup(
     entry_points={
         "console_scripts": [
             "promptbench=promptbench.cli:main",
+            "calibrated-audit=promptbench.cli:main",
         ],
     },
 )

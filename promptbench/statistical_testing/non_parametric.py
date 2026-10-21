@@ -1,5 +1,5 @@
 """
-Non-Parametric Rank Tests for PromptBench (Wilcoxon Signed-Rank & Mann-Whitney U).
+Non-Parametric Rank Tests for Calibrated Audit (Wilcoxon Signed-Rank & Mann-Whitney U).
 Provides distribution-free rank testing with pure-Python execution and SciPy integration.
 """
 

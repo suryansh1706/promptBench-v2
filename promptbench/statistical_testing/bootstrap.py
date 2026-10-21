@@ -1,5 +1,5 @@
 """
-Non-Parametric Bootstrap Confidence Interval Estimation for PromptBench.
+Non-Parametric Bootstrap Confidence Interval Estimation for Calibrated Audit.
 Constructs empirical 95% Confidence Intervals for effect sizes and mean differences.
 """
 

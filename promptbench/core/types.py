@@ -1,5 +1,5 @@
 """
-Data schemas and type definitions for PromptBench.
+Data schemas and type definitions for Calibrated Audit.
 Uses standard Python dataclasses for lightweight, zero-dependency serialization.
 """
 
@@ -211,7 +211,7 @@ class HypothesisTestResult:
 
 @dataclass
 class AuditSummary:
-    """Comprehensive summary of an entire PromptBench audit run."""
+    """Comprehensive summary of an entire Calibrated Audit audit run."""
     audit_id: str
     timestamp: float
     provider: str

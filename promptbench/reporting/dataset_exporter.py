@@ -1,5 +1,5 @@
 """
-Dataset Exporter for PromptBench.
+Dataset Exporter for Calibrated Audit.
 Exports standardized, reusable, and anonymized benchmark datasets in JSON, JSONL, and CSV formats.
 """
 

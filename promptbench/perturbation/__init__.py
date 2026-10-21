@@ -1,5 +1,5 @@
 """
-Perturbation Engine for PromptBench.
+Perturbation Engine for Calibrated Audit.
 Handles multi-cultural demographic banks, scenario templates, and combinatorial slot-filling.
 """
 

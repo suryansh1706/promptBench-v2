@@ -1,8 +1,10 @@
-﻿# PromptBench
+# Calibrated Audit
 
-PromptBench checks whether an AI gives different answers when only a person's background changes. It keeps the person's skills and scores the same, swaps details such as names, pronouns, culture, education, or neighborhood, then compares the AI's answers.
+Calibrated Audit checks whether an AI gives different answers when only a person's background changes. It keeps the person's skills and scores the same, swaps details such as names, pronouns, culture, education, or neighborhood, then compares the AI's answers.
 
 It is a research tool for exploring possible differences. Its results do not prove that a model is fair or unfair in every real-world situation.
+
+The distribution and dashboard are named **Calibrated Audit**. The existing Python import path (`promptbench`) and `promptbench` command remain available for compatibility; the package adds the `calibrated-audit` command.
 
 ## What it does
 
@@ -19,9 +21,9 @@ It is a research tool for exploring possible differences. Its results do not pro
 ## How an audit works
 
 1. Choose a scenario, such as hiring, a loan, or housing.
-2. PromptBench makes versions that keep the important qualifications the same while changing background details.
+2. Calibrated Audit makes versions that keep the important qualifications the same while changing background details.
 3. The selected model answers each version.
-4. PromptBench compares the answers and checks for patterns across groups.
+4. Calibrated Audit compares the answers and checks for patterns across groups.
 5. You review the results and export files for further study.
 
 The checks include answer similarity, sentiment changes, decision consistency, selection rates, confidence intervals, effect sizes, permutation tests, and a multiple-test correction. These measures are clues for review, not legal findings or a substitute for careful human evaluation.
@@ -47,21 +49,21 @@ Live model use may incur costs and is subject to the provider's limits. Keep API
 After installing the project, run an offline demo:
 
 ```bash
-promptbench audit --scenario job_swe_001 --provider mock --output-dir results
+calibrated-audit audit --scenario job_swe_001 --provider mock --output-dir results
 ```
 
 Or use a live provider:
 
 ```bash
-promptbench audit --scenario job_swe_001 --provider gemini --model gemini-3.8-flash
-promptbench audit --scenario job_swe_001 --provider openai --model gpt-4o-mini
+calibrated-audit audit --scenario job_swe_001 --provider gemini --model gemini-3.8-flash
+calibrated-audit audit --scenario job_swe_001 --provider openai --model gpt-4o-mini
 ```
 
 Use `--reps 5` (default) for repeated queries per prompt, `--embedding-model` to select a sentence-transformer, or `--models mock:promptbench-mock-v1,openai:gpt-4o-mini` to run multiple providers/models into separate output folders. Reports include run metadata, response exclusions, calibration summaries, and exploratory tests across decision flips, numeric score deltas, embedding similarity, and secondary sentiment deltas. Audits stop if over 10% of responses fail, are empty, or are refusals.
 
 The first sentence-transformer run may need to download model weights. If the model cannot load, the scorer records the failure and uses its TF-IDF fallback. Use `--reps 1` for a small smoke run; repeated live provider calls may incur cost.
 
-Set the matching API key first. Use `--scenario all` to run every built-in scenario. The command also accepts `--samples-per-group`, `--temperature`, `--seed`, and `--output-dir` options. Run `promptbench audit --help` to see them.
+Set the matching API key first. Use `--scenario all` to run every built-in scenario. The command also accepts `--samples-per-group`, `--temperature`, `--seed`, and `--output-dir` options. Run `calibrated-audit audit --help` to see them.
 
 Each audit writes these files to its output folder:
 

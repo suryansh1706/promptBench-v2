@@ -1,5 +1,5 @@
 """
-Automated Academic Research & LaTeX Report Generator for PromptBench.
+Automated Academic Research & LaTeX Report Generator for Calibrated Audit.
 Produces publication-ready LaTeX tables, Markdown executive summaries, and fairness scorecards.
 """
 
@@ -22,7 +22,7 @@ class ReportGenerator:
             r"\begin{table*}[t]",
             r"\centering",
             r"\caption{Demographic Bias and Response Drift Audit Results with Multiple Comparisons Correction.}",
-            r"\label{tab:promptbench_results}",
+            r"\label{tab:calibrated_audit_results}",
             r"\small",
             r"\begin{tabular}{lllcccccc}",
             r"\toprule",
@@ -55,7 +55,7 @@ class ReportGenerator:
         Creates a clean, comprehensive executive summary in GitHub-Flavored Markdown.
         """
         lines = [
-            f"# PromptBench Bias Audit Executive Report",
+            f"# Calibrated Audit Executive Report",
             f"**Audit ID:** `{summary.audit_id}`  ",
             f"**Evaluated Model:** `{summary.model_name}` ({summary.provider.capitalize()})  ",
             f"**Scenario Domain:** `{summary.scenario_category}`  ",

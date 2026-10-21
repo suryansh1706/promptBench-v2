@@ -1,5 +1,5 @@
 """
-Core modules for PromptBench: Configuration, Data Types, and Deterministic Caching.
+Core modules for Calibrated Audit: Configuration, Data Types, and Deterministic Caching.
 """
 
 from .config import PromptBenchConfig, get_default_config

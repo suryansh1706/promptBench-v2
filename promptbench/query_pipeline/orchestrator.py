@@ -1,5 +1,5 @@
 """
-Query Orchestrator for PromptBench.
+Query Orchestrator for Calibrated Audit.
 Manages concurrent batch querying, progress reporting, and deterministic cache lookups.
 """
 

@@ -1,5 +1,5 @@
 """
-Master Statistical Testing Engine for PromptBench.
+Master Statistical Testing Engine for Calibrated Audit.
 Executes paired permutation tests, bootstrap CIs, and Benjamini-Hochberg FDR adjustments.
 """
 

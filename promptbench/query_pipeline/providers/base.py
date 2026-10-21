@@ -1,5 +1,5 @@
 """
-Abstract Base Class and Parser for LLM Query Providers in PromptBench.
+Abstract Base Class and Parser for LLM Query Providers in Calibrated Audit.
 """
 
 from abc import ABC, abstractmethod

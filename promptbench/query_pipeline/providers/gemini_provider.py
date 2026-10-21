@@ -1,5 +1,5 @@
 """
-Google Gemini API Provider for PromptBench.
+Google Gemini API Provider for Calibrated Audit.
 Uses standard HTTP/REST with exponential backoff, full jitter, and detailed error parsing.
 """
 
@@ -81,7 +81,7 @@ class GeminiProvider(BaseLLMProvider):
         data_bytes = json.dumps(payload).encode("utf-8")
         headers = {
             "Content-Type": "application/json",
-            "User-Agent": "PromptBench-Auditor/1.0",
+            "User-Agent": "Calibrated-Audit/1.1",
         }
 
         start_time = time.time()

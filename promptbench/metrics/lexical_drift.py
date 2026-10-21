@@ -1,5 +1,5 @@
 """
-Lexical and Surface-Form Drift Metrics for PromptBench.
+Lexical and Surface-Form Drift Metrics for Calibrated Audit.
 Measures token-level Jaccard overlap and response length disparity.
 """
 

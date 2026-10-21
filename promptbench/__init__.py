@@ -1,5 +1,5 @@
 """
-PromptBench: A Framework for Auditing Demographic Bias in Large Language Model Responses
+Calibrated Audit: A Framework for Auditing Demographic Bias in Large Language Model Responses
 MAIT CSE Research Minor Project
 """
 

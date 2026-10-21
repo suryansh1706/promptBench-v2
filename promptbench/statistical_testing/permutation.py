@@ -1,5 +1,5 @@
 """
-Paired Two-Sided Permutation Testing for PromptBench.
+Paired Two-Sided Permutation Testing for Calibrated Audit.
 Provides distribution-free statistical hypothesis testing for paired counterfactual prompt evaluations.
 """
 

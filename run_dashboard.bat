@@ -1,8 +1,9 @@
-@echo off
-title PromptBench Dashboard
+﻿@echo off
+title Calibrated Audit Dashboard
 echo ========================================================
-echo Launching PromptBench Demographic Bias Web Dashboard...
+echo Launching Calibrated Audit Demographic Bias Web Dashboard...
 echo ========================================================
 echo.
 "C:\Users\Hp\.python311\python.exe" -m streamlit run app.py
 pause
+

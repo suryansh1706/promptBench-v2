@@ -2,7 +2,7 @@
 
 The engine now varies gender, ethnicity, nationality, and socioeconomic status one axis at a time, keeping fields outside the selected axis at the reference profile. It also creates `IDENTICAL` and neutral-name `SHAM` control pairs. Wording variants in the template catalog reuse seed scenario qualifications, so they broaden phrasing coverage without expanding the underlying decision-domain evidence.
 
-The **Perturbation Engine** is Stage 1 of the PromptBench pipeline. It is responsible for parsing base scenario prompt templates and systematically substituting surface-form demographic and socioeconomic attributes while guaranteeing that substantive qualifications remain $100\%$ invariant.
+The **Perturbation Engine** is Stage 1 of the Calibrated Audit pipeline. It is responsible for parsing base scenario prompt templates and systematically substituting surface-form demographic and socioeconomic attributes while guaranteeing that substantive qualifications remain $100\%$ invariant.
 
 ---
 

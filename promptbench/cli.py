@@ -1,5 +1,5 @@
 """
-PromptBench Command-Line Interface (CLI).
+Calibrated Audit Command-Line Interface (CLI).
 Allows researchers to run end-to-end audits, perturbation generation, and statistical validations from the terminal.
 """
 
@@ -31,7 +31,7 @@ from .reporting.dataset_exporter import DatasetExporter
 def _run_single_audit(args):
     """Executes an end-to-end bias audit."""
     print("=" * 70)
-    print("PromptBench: LLM Demographic Bias Auditing Framework")
+    print("Calibrated Audit: LLM Demographic Bias Auditing Framework")
     print(f"Scenario: {args.scenario} | Provider: {args.provider} | Model: {args.model}")
     print("=" * 70)
 
@@ -241,6 +241,7 @@ def run_audit(args):
             summary.audit_recommendations.append("Benjamini-Hochberg correction was applied across all testable metrics and models in this multi-model run.")
         else:
             summary.audit_recommendations.append("No group/metric comparisons had enough non-degenerate samples for inference across the requested models.")
+    for summary, comparisons, results, output_dir in completed_runs:
         DatasetExporter.export_to_json(summary, comparisons, output_dir / "audit_dataset.json")
         DatasetExporter.export_to_csv(comparisons, output_dir / "audit_comparisons.csv", results, summary.run_metadata)
         (output_dir / "audit_report.md").write_text(ReportGenerator.generate_markdown_summary(summary), encoding="utf-8")
@@ -248,7 +249,7 @@ def run_audit(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="PromptBench: Demographic Bias Auditing CLI")
+    parser = argparse.ArgumentParser(description="Calibrated Audit: Demographic Bias Auditing CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
 
     # Subcommand: audit

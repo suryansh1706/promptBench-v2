@@ -1,5 +1,5 @@
 """
-Deterministic Content-Addressable Response Cache for PromptBench.
+Deterministic Content-Addressable Response Cache for Calibrated Audit.
 Guarantees experimental reproducibility and minimizes API consumption.
 """
 

@@ -2,7 +2,7 @@
 
 Model responses carry `ok`, `error`, `empty`, or `refusal` status. Failed requests are retried, cached with status and replicate-aware keys, excluded from scoring, and counted in output reports; CLI and dashboard audits stop when more than 10% fail. Providers request structured JSON with decision, score, and rationale fields, with legacy parsing retained for cached and older responses.
 
-The **LLM Query Pipeline** is Stage 2 of PromptBench. It manages the robust, rate-limited, and deterministic querying of commercial and open LLMs (Google Gemini, OpenAI GPT, and Mock LLMs) with enterprise resilience and zero duplicate API expenditure.
+The **LLM Query Pipeline** is Stage 2 of Calibrated Audit. It manages the robust, rate-limited, and deterministic querying of commercial and open LLMs (Google Gemini, OpenAI GPT, and Mock LLMs) with enterprise resilience and zero duplicate API expenditure.
 
 ---
 
@@ -20,7 +20,7 @@ The **LLM Query Pipeline** is Stage 2 of PromptBench. It manages the robust, rat
 ## 2. Algorithms Used in this Module
 
 ### Algorithm 1: Exponential Backoff with Full Jitter
-When querying commercial LLM APIs, rate-limits (HTTP 429) and transient network disconnects (HTTP 503) cause synchronized thundering herd spikes if naive backoff is used. PromptBench implements **Full Jitter Exponential Backoff**:
+When querying commercial LLM APIs, rate-limits (HTTP 429) and transient network disconnects (HTTP 503) cause synchronized thundering herd spikes if naive backoff is used. Calibrated Audit implements **Full Jitter Exponential Backoff**:
 
 $$t_{\text{sleep}} \sim \text{Uniform}\Big(0, \, \min\big(t_{\text{max}}, \, t_{\text{base}} \times 2^{\text{attempt}}\big)\Big)$$
 
@@ -44,7 +44,7 @@ Compared to deterministic exponential backoff ($t = 2^i$), Full Jitter uniformly
 ---
 
 ### Algorithm 2: Deterministic Structured Output Parsing
-LLM responses can include explanatory reasoning text around the final decision. PromptBench uses a prioritized multi-stage regular expression grammar:
+LLM responses can include explanatory reasoning text around the final decision. Calibrated Audit uses a prioritized multi-stage regular expression grammar:
 
 1. **Structured Token Capture**:
    $$\mathcal{R}_{\text{decision}} = \text{re.search}(\texttt{r"\[DECISION:\s*([A-Za-z]+)\]"}, \text{raw\_text})$$

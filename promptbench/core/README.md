@@ -1,6 +1,6 @@
-# PromptBench Core Architecture & Foundations (`promptbench/core`)
+# Calibrated Audit Core Architecture & Foundations (`promptbench/core`)
 
-This module provides the core data infrastructure, centralized configuration, domain schemas, and deterministic response caching for the PromptBench audit pipeline.
+This module provides the core data infrastructure, centralized configuration, domain schemas, and deterministic response caching for the Calibrated Audit audit pipeline.
 
 ---
 

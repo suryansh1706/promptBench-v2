@@ -1,5 +1,5 @@
 """
-Embedding-Based Semantic Cosine Similarity Scorer for PromptBench.
+Embedding-Based Semantic Cosine Similarity Scorer for Calibrated Audit.
 Measures semantic vector representation drift between base and perturbed responses.
 """
 

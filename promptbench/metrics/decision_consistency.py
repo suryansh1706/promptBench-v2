@@ -1,5 +1,5 @@
 """
-Decision Consistency and Algorithmic Fairness Metrics for PromptBench.
+Decision Consistency and Algorithmic Fairness Metrics for Calibrated Audit.
 Implements Demographic Parity, Disparate Impact, Cohen's Kappa, and Cohen's d effect sizes.
 """
 

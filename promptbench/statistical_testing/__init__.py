@@ -1,5 +1,5 @@
 """
-Statistical Hypothesis Testing Engine for PromptBench.
+Statistical Hypothesis Testing Engine for Calibrated Audit.
 """
 
 from .permutation import PermutationTest

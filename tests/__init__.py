@@ -1,3 +1,3 @@
 """
-Tests package for PromptBench.
+Tests package for Calibrated Audit.
 """

@@ -1,5 +1,5 @@
 """
-Sentiment Analysis and Drift Metric Scorer for PromptBench.
+Sentiment Analysis and Drift Metric Scorer for Calibrated Audit.
 Computes lexicon-grounded valence polarity and paired sentiment deltas.
 """
 

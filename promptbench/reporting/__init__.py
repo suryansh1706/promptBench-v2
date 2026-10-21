@@ -1,5 +1,5 @@
 """
-Reporting and Dataset Export for PromptBench.
+Reporting and Dataset Export for Calibrated Audit.
 """
 
 from .report_generator import ReportGenerator

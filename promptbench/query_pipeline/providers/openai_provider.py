@@ -1,5 +1,5 @@
 """
-OpenAI API Provider for PromptBench (GPT-4o, GPT-4o-mini, GPT-3.5-turbo).
+OpenAI API Provider for Calibrated Audit (GPT-4o, GPT-4o-mini, GPT-3.5-turbo).
 """
 
 import os

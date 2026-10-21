@@ -1,5 +1,5 @@
 """
-Multiple Testing Corrections for PromptBench.
+Multiple Testing Corrections for Calibrated Audit.
 Implements Benjamini-Hochberg FDR, Bonferroni, and Holm-Bonferroni corrections.
 """
 

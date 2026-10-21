@@ -1,5 +1,5 @@
 """
-Combinatorial Perturbation Engine for PromptBench.
+Combinatorial Perturbation Engine for Calibrated Audit.
 Performs systematic slot substitution while preserving 100% invariant substantive content.
 """
 

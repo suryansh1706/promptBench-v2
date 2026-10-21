@@ -1,5 +1,5 @@
 """
-High-Fidelity Deterministic Mock LLM Provider for PromptBench.
+High-Fidelity Deterministic Mock LLM Provider for Calibrated Audit.
 Provides instant offline testing, unit testing, and reproducible benchmark demonstrations.
 """
 

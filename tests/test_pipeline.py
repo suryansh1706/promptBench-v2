@@ -1,5 +1,5 @@
 """
-End-to-End Test Suite for PromptBench.
+End-to-End Test Suite for Calibrated Audit.
 Validates perturbation generation, cache deduplication, scoring metrics, and statistical hypothesis testing.
 """
 
@@ -36,7 +36,7 @@ from promptbench.reporting.dataset_exporter import DatasetExporter
 
 
 class TestPromptBenchPipeline(unittest.TestCase):
-    """Unit and Integration Tests for PromptBench."""
+    """Unit and Integration Tests for Calibrated Audit."""
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
