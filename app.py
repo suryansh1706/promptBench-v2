@@ -146,7 +146,7 @@ st.sidebar.caption("Choose what to evaluate and which model to use.")
 selected_scenario = st.sidebar.selectbox(
     "Scenario",
     options=[t.template_id for t in SCENARIO_TEMPLATES] + ["all"],
-    format_func=lambda x: "All scenarios (4 templates)" if x == "all" else f"{get_template_by_id(x).title} ({get_template_by_id(x).scenario_category})",
+    format_func=lambda x: f"All {len(SCENARIO_TEMPLATES)} scenario templates" if x == "all" else f"{get_template_by_id(x).title} ({get_template_by_id(x).scenario_category})",
     help="Each scenario is a fixed example prompt. Choose all scenarios to run the full set.",
 )
 

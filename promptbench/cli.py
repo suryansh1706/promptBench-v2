@@ -15,6 +15,7 @@ from .core.types import AuditSummary
 from .perturbation.engine import PerturbationEngine
 from .perturbation.templates import SCENARIO_TEMPLATES, get_template_by_id
 from .query_pipeline.orchestrator import QueryOrchestrator
+from .query_pipeline.checkpoint import AuditCheckpoint
 from .query_pipeline.providers.base import BaseLLMProvider
 from .query_pipeline.providers.mock_provider import MockLLMProvider
 from .query_pipeline.providers.gemini_provider import GeminiProvider
@@ -30,7 +31,8 @@ def run_audit(args):
     """Executes an end-to-end bias audit."""
     print("=" * 70)
     print("Calibrated Audit: LLM Demographic Bias Auditing Framework")
-    print(f"Scenario: {args.scenario} | Provider: {args.provider} | Model: {args.model or 'provider default'}")
+    selected_label = ", ".join(getattr(args, "template_ids", None) or [args.scenario])
+    print(f"Scenario: {selected_label} | Provider: {args.provider} | Model: {args.model or 'provider default'}")
     print("=" * 70)
 
     config = PromptBenchConfig()
@@ -59,27 +61,50 @@ def run_audit(args):
     # 1. Perturbation Engine
     print("\n[Stage 1/5] Running Perturbation Engine...")
     engine = PerturbationEngine()
-    template_ids = [args.scenario] if args.scenario != "all" else [t.template_id for t in SCENARIO_TEMPLATES]
+    template_ids = getattr(args, "template_ids", None) or ([args.scenario] if args.scenario != "all" else [t.template_id for t in SCENARIO_TEMPLATES])
+    if len(template_ids) != len(set(template_ids)):
+        raise ValueError("Template IDs must be unique.")
     all_prompts, paired_prompts = engine.generate_counterfactual_dataset(
         template_ids=template_ids,
         names_per_group=args.samples_per_group,
     )
+    brief_instruction = None
+    if getattr(args, "brief_output", False):
+        brief_instruction = " Choose exactly one decision from the task's allowed options; never list alternatives. Return [DECISION: <chosen option>] [SCORE: <number from 0 to 100>] followed by one justification sentence of at most 25 words. No other text."
+        for prompt in all_prompts:
+            prompt.system_prompt += brief_instruction
     print(f" -> Generated {len(all_prompts)} prompts across {len(paired_prompts)} matched pairs, including controls.")
+    print(f" -> Selected templates: {', '.join(template_ids)}", flush=True)
 
     # 2. LLM Query Pipeline
     print(f"\n[Stage 2/5] Querying Model ({args.provider}:{config.provider.model_name})...")
     orchestrator = QueryOrchestrator.from_config(config)
 
-    def on_progress(curr, total, resp):
-        if curr % max(1, total // 10) == 0 or curr == total:
-            print(f" -> Progress: {curr}/{total} prompts evaluated ({curr/total*100:.1f}%)", flush=True)
+    settings = {"provider": args.provider, "model": config.provider.model_name,
+                "temperature": args.temperature, "seed": args.seed, "max_tokens": args.max_tokens,
+                "samples_per_group": args.samples_per_group, "template_ids": template_ids,
+                "response_profile": "brief_25_words_v1" if getattr(args, "brief_output", False) else "original",
+                "brief_instruction": brief_instruction,
+                "request_timeout": args.request_timeout, "max_retries": args.max_retries,
+                "ollama_host": args.ollama_host if args.provider == "ollama" else None,
+                "model_digest": getattr(orchestrator.provider, "model_digest", None)}
+    checkpoint = AuditCheckpoint(output_dir, all_prompts, settings, resume=getattr(args, "resume", False))
+    recovered = len(checkpoint.responses)
+    pending = [prompt for prompt in all_prompts if prompt.prompt_id not in checkpoint.responses]
+    print(f" -> Same-run checkpoint: {recovered} recorded; {len(pending)} calls remaining. Completed controls are retained, not replayed.", flush=True)
+    if getattr(args, "resume", False) and pending:
+        print(" -> Resume note: unrecorded in-flight requests may have executed before interruption. Remaining calls are the same planned observations, not additional independent replicates.", flush=True)
+    started = time.monotonic()
 
-    responses = orchestrator.execute_batch(all_prompts, progress_callback=on_progress)
-    successful_responses = sum(
-        bool(response.raw_text.strip()) and response.extracted_decision != "ERROR"
-        and not response.metadata.get("error")
-        for response in responses.values()
-    )
+    def on_progress(curr, total, resp):
+        checkpoint.record(resp)
+        elapsed = time.monotonic() - started
+        eta = elapsed / curr * (total - curr)
+        print(f" -> Saved {recovered + curr}/{len(all_prompts)} responses; latest {resp.prompt_id}; elapsed {elapsed:.0f}s; estimated remaining {eta / 60:.1f}min", flush=True)
+
+    orchestrator.execute_batch(pending, progress_callback=on_progress)
+    responses = checkpoint.responses
+    successful_responses = sum(not BiasScorer._failed_response(response) for response in responses.values())
     failed_responses = len(responses) - successful_responses
     print(f" -> Received {len(responses)} responses: {successful_responses} usable, {failed_responses} failed or blocked.")
 
@@ -141,7 +166,12 @@ def run_audit(args):
         "matched_pairs_generated": len(paired_prompts),
         "valid_pairs": len(comparisons),
         "excluded_pairs": excluded_pairs,
+        "parsed_decision_responses": sum(r.extracted_decision not in {None, "ERROR", "BLOCKED"} for r in responses.values()),
+        "parsed_score_responses": sum(r.extracted_score is not None for r in responses.values()),
     }
+
+    fairness_metrics["run_execution"] = {"settings": settings, "recovered_responses": recovered, "new_responses": len(pending),
+                                       "checkpoint_note": "Recovered responses are observations from this same run, not new calls or independent replicates."}
 
     recommendations = []
     significant_differences = [r for r in hyp_results if r.is_significant_fdr]
@@ -164,11 +194,11 @@ def run_audit(args):
     recommendations.append("Selection-rate ratios are descriptive for this synthetic sample and are not legal adverse-impact findings.")
 
     summary = AuditSummary(
-        audit_id=f"audit_{int(time.time())}",
-        timestamp=time.time(),
+        audit_id=checkpoint.manifest["run_id"],
+        timestamp=checkpoint.manifest["started_at"],
         provider=args.provider,
-        model_name=args.model,
-        scenario_category=args.scenario,
+        model_name=config.provider.model_name,
+        scenario_category=" + ".join(sorted({get_template_by_id(template_id).scenario_category for template_id in template_ids})),
         total_prompts_tested=len(all_prompts),
         total_pairs_evaluated=len(comparisons),
         overall_mean_similarity=round(mean_sim, 4),
@@ -221,6 +251,9 @@ def main():
     # Subcommand: audit
     audit_parser = subparsers.add_parser("audit", help="Run end-to-end bias audit")
     audit_parser.add_argument("--scenario", type=str, default="job_swe_001", help="Template ID or 'all'")
+    audit_parser.add_argument("--template-ids", nargs="+", help="Explicit subset of unique template IDs; overrides --scenario selection")
+    audit_parser.add_argument("--resume", action="store_true", help="Continue the same output-directory run with identical prompts/settings/model digest")
+    audit_parser.add_argument("--brief-output", action="store_true", help="Request decision, score, and one justification sentence of at most 25 words (distinct response profile)")
     audit_parser.add_argument("--provider", type=str, default="mock", choices=["gemini", "mock", "openai", "ollama"])
     audit_parser.add_argument("--model", type=str, default=None, help="Model name (defaults to a provider-specific model)")
     audit_parser.add_argument("--temperature", type=float, default=0.0, help="Sampling temperature")
