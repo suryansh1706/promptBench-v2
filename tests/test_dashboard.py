@@ -87,6 +87,17 @@ class TestDashboard(unittest.TestCase):
         next(c for c in at.checkbox if c.label == "Include raw prompts and responses in JSON").check().run(timeout=60)
         self.assertEqual(len(at.exception), 0)
 
+    def test_completed_experiment_is_available_in_dashboard_navigation(self):
+        from streamlit.testing.v1 import AppTest
+        at = AppTest.from_file(str(ROOT / "app.py")).run(timeout=60)
+        self.assertEqual(len(at.exception), 0)
+        labels = [tab.label for tab in at.tabs]
+        self.assertIn("Larger experiment", labels)
+        self.assertEqual(next(m.value for m in at.metric if m.label == "Usable local responses"), "232 / 232")
+        self.assertEqual(next(m.value for m in at.metric if m.label == "Valid matched comparisons"), "228 / 228")
+        self.assertIn("Treatment decision changes", [metric.label for metric in at.metric])
+        self.assertEqual(len(at.get("iframe")), 3)
+
     def test_local_selection_waits_without_inference(self):
         from streamlit.testing.v1 import AppTest
         at = AppTest.from_file(str(ROOT / "app.py")).run(timeout=60)

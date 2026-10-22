@@ -313,9 +313,9 @@ st.caption(f"{len(control_comparisons)} control pairs | {len(decided_pairs)}/{le
 summary_png = figure_png(presentation_figure(comparisons, model_choice, provider_choice, quality))
 st.download_button("Download presentation summary (.png)", data=summary_png, file_name=f"promptbench_{provider_choice}_{selected_scenario}_summary.png", mime="image/png")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "Overview", "Calibration", "Pair review",
-    "Custom audit", "Export",
+    "Custom audit", "Export", "Larger experiment",
 ])
 
 with tab1:
@@ -503,3 +503,55 @@ with tab5:
             file_name=f"promptbench_audit_{selected_scenario}.csv",
             mime="text/csv",
         )
+
+
+# TAB 6: COMPLETED LARGER LOCAL EXPERIMENT
+with tab6:
+    st.subheader("Completed larger local experiment")
+    st.caption("Explore the committed, minimized Ollama results. The three decision domains are reported separately.")
+    experiment_dir = Path(__file__).resolve().parent / "results" / "curated_ollama_larger_20261021"
+    domains = [
+        ("Hiring", "hiring"),
+        ("Small-business loan", "loan"),
+        ("Tenant screening", "tenant"),
+    ]
+    domain_payloads = {}
+    for title, slug in domains:
+        dataset_path = experiment_dir / slug / "audit_dataset.json"
+        if not dataset_path.is_file():
+            continue
+        payload = json.loads(dataset_path.read_text(encoding="utf-8"))
+        if payload.get("raw_text_included") is not False:
+            continue
+        domain_payloads[slug] = payload
+
+    if len(domain_payloads) != len(domains):
+        st.info("The curated experiment reports are not available in this deployment.")
+    else:
+        totals = {key: sum(payload["summary"]["axis_summaries"]["response_quality"][key]
+                           for payload in domain_payloads.values())
+                  for key in ("usable_responses", "requests", "valid_pairs", "matched_pairs_generated")}
+        columns = st.columns(2)
+        columns[0].metric("Usable local responses", f"{totals['usable_responses']} / {totals['requests']}")
+        columns[1].metric("Valid matched comparisons", f"{totals['valid_pairs']} / {totals['matched_pairs_generated']}")
+        st.info("Coverage totals are shown for context only. Decisions, scores, and statistical summaries remain separate by domain; this is an exploratory fixed-prompt audit, not a fairness verdict.")
+        report_tabs = st.tabs([title for title, _ in domains])
+        for report_tab, (title, slug) in zip(report_tabs, domains):
+            with report_tab:
+                payload = domain_payloads[slug]
+                quality = payload["summary"]["axis_summaries"]["response_quality"]
+                settings = payload["summary"]["axis_summaries"]["run_execution"]["settings"]
+                treatment_pairs = [row for row in payload["comparisons"]
+                                   if row.get("condition") not in {"IDENTICAL", "SHAM"}
+                                   and isinstance(row.get("decision_matches"), bool)]
+                changed = sum(not row["decision_matches"] for row in treatment_pairs)
+                st.caption(f"{len(settings['template_ids'])} original scenario template(s) · {settings['model']} · {settings['response_profile']}")
+                domain_columns = st.columns(3)
+                domain_columns[0].metric("Usable responses", f"{quality['usable_responses']} / {quality['requests']}")
+                domain_columns[1].metric("Valid comparisons", f"{quality['valid_pairs']} / {quality['matched_pairs_generated']}")
+                domain_columns[2].metric("Treatment decision changes", f"{changed} / {len(treatment_pairs)}")
+                report_path = experiment_dir / slug / "results.html"
+                if report_path.is_file():
+                    st.iframe(report_path, height=1400)
+                else:
+                    st.warning(f"The {title.lower()} report page is missing from this deployment.")
