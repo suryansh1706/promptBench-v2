@@ -5,3 +5,11 @@ gatherUsageStats = false
 headless = true
 enableCORS = false
 enableXsrfProtection = false
+
+[theme]
+base = "dark"
+primaryColor = "#8EA8FF"
+backgroundColor = "#0B1020"
+secondaryBackgroundColor = "#111A2B"
+textColor = "#E6ECF5"
+font = "sans serif"

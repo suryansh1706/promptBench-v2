@@ -78,11 +78,11 @@ class TestDashboard(unittest.TestCase):
         select("Comparison reference", "SHAM")
         select("Select Counterfactual Pair to Inspect", 1)
         self.assertTrue(next(t for t in at.text_area if t.label == "Variant Model Response").value)
-        next(b for b in at.button if "Run Live Audit on Custom Template" in b.label).click().run(timeout=60)
+        next(b for b in at.button if "Run custom audit" in b.label).click().run(timeout=60)
         self.assertEqual(len(at.exception), 0)
         self.assertTrue(any("Successfully evaluated" in item.value for item in at.success))
         labels = [button.label for button in at.get("download_button")]
-        for label in ("Download group chart (.png)", "Download calibration chart (.png)", "⬇️ Download Full Audit Dataset (.JSON)", "⬇️ Download Flat Comparisons (.CSV)"):
+        for label in ("Download JSON dataset", "Download CSV comparisons"):
             self.assertIn(label, labels)
         next(c for c in at.checkbox if c.label == "Include raw prompts and responses in JSON").check().run(timeout=60)
         self.assertEqual(len(at.exception), 0)
