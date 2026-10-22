@@ -54,6 +54,7 @@ class TestDashboard(unittest.TestCase):
     def test_mock_views_filters_and_presentation_download(self):
         from streamlit.testing.v1 import AppTest
         at = AppTest.from_file(str(ROOT / "app.py")).run(timeout=60)
+        next(r for r in at.radio if r.label == "Choose a page").set_value("Try an audit").run(timeout=60)
         self.assertEqual(len(at.exception), 0)
         labels = [button.label for button in at.get("download_button")]
         self.assertIn("Download presentation summary (.png)", labels)
@@ -68,6 +69,7 @@ class TestDashboard(unittest.TestCase):
     def test_mock_workflow_filters_inspector_custom_and_exports(self):
         from streamlit.testing.v1 import AppTest
         at = AppTest.from_file(str(ROOT / "app.py")).run(timeout=60)
+        next(r for r in at.radio if r.label == "Choose a page").set_value("Try an audit").run(timeout=60)
         def select(label, value):
             next(s for s in at.selectbox if s.label == label).select(value).run(timeout=60)
             self.assertEqual(len(at.exception), 0)
@@ -87,20 +89,28 @@ class TestDashboard(unittest.TestCase):
         next(c for c in at.checkbox if c.label == "Include raw prompts and responses in JSON").check().run(timeout=60)
         self.assertEqual(len(at.exception), 0)
 
-    def test_completed_experiment_is_available_in_dashboard_navigation(self):
+    def test_saved_results_are_the_plain_language_default_page(self):
         from streamlit.testing.v1 import AppTest
         at = AppTest.from_file(str(ROOT / "app.py")).run(timeout=60)
         self.assertEqual(len(at.exception), 0)
-        labels = [tab.label for tab in at.tabs]
-        self.assertIn("Larger experiment", labels)
-        self.assertEqual(next(m.value for m in at.metric if m.label == "Usable local responses"), "232 / 232")
-        self.assertEqual(next(m.value for m in at.metric if m.label == "Valid matched comparisons"), "228 / 228")
-        self.assertIn("Treatment decision changes", [metric.label for metric in at.metric])
-        self.assertEqual(len(at.get("iframe")), 3)
+        page = next(r for r in at.radio if r.label == "Choose a page")
+        self.assertEqual(page.value, "Results from our experiment")
+        self.assertEqual(len(at.sidebar.selectbox), 0)
+        self.assertEqual(next(m.value for m in at.metric if m.label == "Model answers received"), "232 / 232")
+        self.assertEqual(next(m.value for m in at.metric if m.label == "Valid comparisons, including controls"), "228 / 228")
+        self.assertEqual(next(m.value for m in at.metric if m.label == "Decisions changed"), "2 / 102")
+        self.assertEqual(len(at.get("iframe")), 0)
+        self.assertTrue(any("Both changes appeared in comparisons using the low socioeconomic-status cue" in item.value for item in at.markdown))
+        next(r for r in at.radio if r.label == "Choose a task").set_value("Small-business loan").run(timeout=60)
+        self.assertEqual(next(m.value for m in at.metric if m.label == "Decisions changed"), "0 / 51")
+        next(r for r in at.radio if r.label == "Choose a page").set_value("How it works").run(timeout=60)
+        self.assertEqual(len(at.exception), 0)
+        self.assertTrue(any("What is a baseline?" in item.value for item in at.markdown))
 
     def test_local_selection_waits_without_inference(self):
         from streamlit.testing.v1 import AppTest
         at = AppTest.from_file(str(ROOT / "app.py")).run(timeout=60)
+        next(r for r in at.radio if r.label == "Choose a page").set_value("Try an audit").run(timeout=60)
         with patch("promptbench.query_pipeline.providers.ollama_provider.OllamaProvider.available_models", return_value=[{"name": "qwen2.5:7b"}]), patch("promptbench.query_pipeline.providers.ollama_provider.OllamaProvider.generate_response") as generate:
             at.sidebar.selectbox[1].select("ollama").run(timeout=60)
         self.assertEqual(len(at.exception), 0)
